@@ -30,8 +30,10 @@ const VIP_ROLE_ID = "1492255499239030966";
 const activeUploads = new Map();
 let salesCount = 0;
 
-// ================= SELL PANEL =================
+// ================= DEBUG TOKEN =================
+console.log("TOKEN:", process.env.TOKEN);
 
+// ================= SELL PANEL =================
 async function sendSellPanel() {
     const channel = await client.channels.fetch(SELL_CHANNEL_ID).catch(() => null);
     if (!channel) return;
@@ -64,7 +66,6 @@ async function sendSellPanel() {
 }
 
 // ================= TEAM PANEL =================
-
 async function sendTeamPanel() {
     const channel = await client.channels.fetch(TEAM_CHANNEL_ID).catch(() => null);
     if (!channel) return;
@@ -96,7 +97,6 @@ async function sendTeamPanel() {
 }
 
 // ================= READY =================
-
 client.once('ready', async () => {
     console.log(`✅ ONLINE: ${client.user.tag}`);
     await sendSellPanel();
@@ -104,7 +104,6 @@ client.once('ready', async () => {
 });
 
 // ================= INTERACTIONS =================
-
 client.on('interactionCreate', async interaction => {
     try {
 
@@ -208,7 +207,6 @@ client.on('interactionCreate', async interaction => {
 });
 
 // ================= MESSAGE =================
-
 client.on('messageCreate', async message => {
     if (message.author.bot) return;
 
@@ -250,5 +248,5 @@ client.on('messageCreate', async message => {
     }
 });
 
-// 🔥 WICHTIG (Railway)
+// 🔥 LOGIN
 client.login(process.env.TOKEN);
