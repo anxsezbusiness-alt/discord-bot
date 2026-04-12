@@ -1,3 +1,4 @@
+
 const {
     Client,
     GatewayIntentBits,
@@ -26,10 +27,10 @@ const client = new Client({
 const SELL_CHANNEL_ID = process.env.SELL_CHANNEL_ID;
 const TEAM_CHANNEL_ID = process.env.TEAM_CHANNEL_ID;
 
-const VIP_SOURCE_CHANNEL_ID = process.env.VIP_SOURCE_CHANNEL_ID || '1492261103315587354';
-const VIP_ALERT_CHANNEL_ID = process.env.VIP_ALERT_CHANNEL_ID || VIP_SOURCE_CHANNEL_ID;
+const VIP_SOURCE_CHANNEL_ID = '1492261103315587354';
+const VIP_ALERT_CHANNEL_ID = '1492261194487037952';
 const VIP_ROLE_ID = process.env.VIP_ROLE_ID || null;
-const VIP_ROLE_NAME = process.env.VIP_ROLE_NAME || '𝘝𝘐𝘗';
+const VIP_ROLE_NAME = process.env.VIP_ROLE_NAME || 'VIP';
 const VIP_MAX_PRICE_EUR = Number(process.env.VIP_MAX_PRICE_EUR || 35);
 
 const activeUploads = new Map();
@@ -63,9 +64,15 @@ const BRAND_KEYWORDS = [
 ];
 
 function getImageAttachment(message) {
-    return message.attachments.find(attachment =>
-        attachment.contentType?.startsWith('image/') ||
-        /\.(png|jpe?g|gif|webp)$/i.test(attachment.name || '')
+    if (!message.attachments || message.attachments.size === 0) {
+        return null;
+    }
+
+    return (
+        message.attachments.find(attachment =>
+            attachment.contentType?.startsWith('image/') ||
+            /\.(png|jpe?g|gif|webp|bmp)$/i.test(attachment.name || '')
+        ) || message.attachments.first()
     );
 }
 
@@ -77,6 +84,11 @@ function extractPrices(text) {
 function getVipPieceData(message) {
     const embed = message.embeds?.[0];
     if (!embed) return null;
+
+    const footerText = embed.footer?.text || embed.data?.footer?.text || '';
+    if (!footerText.includes('Item-ID:')) {
+        return null;
+    }
 
     const title = embed.title || '';
     const description = embed.description || '';
@@ -171,7 +183,6 @@ async function deleteFavoriteCopies(guild, itemId) {
 async function refreshPanels() {
     console.log(`[${new Date().toLocaleTimeString()}] Panels werden aktualisiert...`);
 
-    // 1. SELL PANEL
     try {
         const sellChan = await client.channels.fetch(SELL_CHANNEL_ID);
         if (sellChan) {
@@ -202,7 +213,6 @@ async function refreshPanels() {
         console.error('Fehler Sell-Channel:', err.message);
     }
 
-    // 2. TEAM PANEL
     try {
         const teamChan = await client.channels.fetch(TEAM_CHANNEL_ID);
         if (teamChan) {
@@ -244,12 +254,9 @@ client.once('ready', async () => {
 });
 
 client.on('interactionCreate', async interaction => {
-    // --- BUTTONS FUER MODALS ---
     if (interaction.isButton()) {
         if (interaction.customId === 'start_upload') {
-            const modal = new ModalBuilder()
-                .setCustomId('upload_modal')
-                .setTitle('Piece Details');
+            const modal = new ModalBuilder().setCustomId('upload_modal').setTitle('Piece Details');
 
             const pieceInput = new TextInputBuilder()
                 .setCustomId('title')
@@ -282,9 +289,7 @@ client.on('interactionCreate', async interaction => {
         }
 
         if (interaction.customId === 'start_teamup') {
-            const modal = new ModalBuilder()
-                .setCustomId('team_modal')
-                .setTitle('Team Suche');
+            const modal = new ModalBuilder().setCustomId('team_modal').setTitle('Team Suche');
 
             const descInput = new TextInputBuilder()
                 .setCustomId('desc')
@@ -298,7 +303,6 @@ client.on('interactionCreate', async interaction => {
         }
     }
 
-    // --- MODAL SUBMITS ---
     if (interaction.isModalSubmit()) {
         if (interaction.customId === 'upload_modal') {
             activeUploads.set(interaction.user.id, {
@@ -390,11 +394,9 @@ client.on('interactionCreate', async interaction => {
         }
     }
 
-    // --- ITEM ACTIONS (SOLD, FAV, OFFER) ---
     if (interaction.isButton()) {
         const parts = interaction.customId.split('_');
         if (parts.length < 3) return;
-
         const [action, itemId, sellerId] = parts;
 
         if (action === 'sold') {
@@ -421,7 +423,7 @@ client.on('interactionCreate', async interaction => {
 
             const favoritesChannelName = `favs-${interaction.user.id}`;
             let favChan = interaction.guild.channels.cache.find(
-                c => c.type === ChannelType.GuildText && c.name === favoritesChannelName
+                channel => channel.type === ChannelType.GuildText && channel.name === favoritesChannelName
             );
 
             if (!favChan) {
@@ -437,9 +439,9 @@ client.on('interactionCreate', async interaction => {
 
             const existingMessages = await favChan.messages.fetch({ limit: 100 });
             const alreadySaved = existingMessages.find(
-                m =>
-                    m.author.id === client.user.id &&
-                    m.embeds[0]?.data?.footer?.text === `Item-ID: ${itemId}`
+                message =>
+                    message.author.id === client.user.id &&
+                    message.embeds[0]?.data?.footer?.text === `Item-ID: ${itemId}`
             );
 
             if (alreadySaved) {
@@ -496,29 +498,33 @@ client.on('interactionCreate', async interaction => {
     }
 });
 
-// --- FOTO, DONE, VIP LOGIK ---
 client.on('messageCreate', async message => {
     await handleVipDeal(message).catch(error => {
         console.error('VIP-Erkennung fehlgeschlagen:', error.message);
     });
 
     if (message.author.bot || !activeUploads.has(message.author.id)) return;
+
     const data = activeUploads.get(message.author.id);
     const imageAttachment = getImageAttachment(message);
 
-    if (imageAttachment) {
-        data.imageUrl = imageAttachment.url;
+    if (imageAttachment && !data.imageUrl) {
+        data.imageUrl = imageAttachment.proxyURL || imageAttachment.url;
+    }
+
+    if (imageAttachment && !message.content.trim()) {
         await message.delete().catch(() => {});
+        return;
     }
 
     if (message.content.trim().toLowerCase() === 'done') {
-        if (imageAttachment && !data.imageUrl) {
-            data.imageUrl = imageAttachment.url;
+        await message.delete().catch(() => {});
+
+        if (!data.imageUrl) {
+            return;
         }
 
-        await message.delete().catch(() => {});
         const itemId = Date.now().toString();
-
         const embed = new EmbedBuilder()
             .setTitle(`📦 ${data.title}`)
             .addFields(
@@ -526,11 +532,8 @@ client.on('messageCreate', async message => {
                 { name: '👤 Verkaeufer', value: `<@${message.author.id}>`, inline: true }
             )
             .setColor('#ffffff')
-            .setFooter({ text: `Item-ID: ${itemId}` });
-
-        if (data.imageUrl) {
-            embed.setImage(data.imageUrl);
-        }
+            .setFooter({ text: `Item-ID: ${itemId}` })
+            .setImage(data.imageUrl);
 
         const chan = await client.channels.fetch(SELL_CHANNEL_ID);
         const sentMessage = await chan.send({ embeds: [embed] });
