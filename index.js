@@ -11,6 +11,7 @@ const {
     ChannelType,
     PermissionsBitField
 } = require('discord.js');
+const cron = require('node-cron'); // Für das 5-Minuten Intervall
 
 const client = new Client({
     intents: [
@@ -25,81 +26,81 @@ const SELL_CHANNEL_ID = process.env.SELL_CHANNEL_ID;
 const TEAM_CHANNEL_ID = process.env.TEAM_CHANNEL_ID;
 
 const activeUploads = new Map();
-const itemStats = new Map(); // itemId -> { favCount: 0, favUsers: [] }
+const itemStats = new Map();
 
-// --- FUNKTION: PANELS SCHREIBEN (BEIM RESTART) ---
-async function sendFreshPanels() {
-    console.log("🔄 Bot neu gestartet: Sende frische Panels...");
+// --- FUNKTION: PANELS REFRESHEN (LÖSCHEN & NEU SENDEN) ---
+async function refreshPanels() {
+    console.log(`[${new Date().toLocaleTimeString()}] 🔄 Automatischer Refresh: Panels werden erneuert...`);
 
-    // 1. SELL PANEL REFRESH
+    // 1. SELL PANEL
     const sellChan = await client.channels.fetch(SELL_CHANNEL_ID).catch(() => null);
     if (sellChan) {
         try {
             const msgs = await sellChan.messages.fetch({ limit: 50 });
-            const oldPanels = msgs.filter(m => m.author.id === client.user.id && m.embeds[0]?.title === "📦 SELL YOUR PIECE");
-            for (const m of oldPanels.values()) await m.delete().catch(() => {});
+            // Lösche alle alten Nachrichten vom Bot in diesem Channel
+            const oldBotsMsgs = msgs.filter(m => m.author.id === client.user.id && m.embeds[0]?.title === "📦 SELL YOUR PIECE");
+            for (const m of oldBotsMsgs.values()) await m.delete().catch(() => {});
 
             const embed = new EmbedBuilder()
                 .setTitle("📦 SELL YOUR PIECE")
                 .setDescription("Klicke auf den Button unten, um dein Piece zum Verkauf anzubieten.")
-                .setColor("#000000")
-                .setFooter({ text: "System Online • " + new Date().toLocaleString() });
+                .setColor("#000000");
 
             const row = new ActionRowBuilder().addComponents(
                 new ButtonBuilder().setCustomId("start_upload").setLabel("SELL PIECE").setStyle(ButtonStyle.Primary)
             );
 
             await sellChan.send({ embeds: [embed], components: [row] });
-            console.log("✅ Sell-Panel gesendet.");
-        } catch (e) { console.error("Fehler im Sell-Channel:", e); }
+        } catch (e) { console.error("Fehler im Sell-Channel Refresh:", e); }
     }
 
-    // 2. TEAM UP PANEL REFRESH
+    // 2. TEAM UP PANEL
     const teamChan = await client.channels.fetch(TEAM_CHANNEL_ID).catch(() => null);
     if (teamChan) {
         try {
             const msgs = await teamChan.messages.fetch({ limit: 50 });
-            const oldPanels = msgs.filter(m => m.author.id === client.user.id && m.embeds[0]?.title === "🤝 FIND A TEAM");
-            for (const m of oldPanels.values()) await m.delete().catch(() => {});
+            const oldBotsMsgs = msgs.filter(m => m.author.id === client.user.id && m.embeds[0]?.title === "🤝 FIND A TEAM");
+            for (const m of oldBotsMsgs.values()) await m.delete().catch(() => {});
 
             const embed = new EmbedBuilder()
                 .setTitle("🤝 FIND A TEAM")
                 .setDescription("Suche hier nach Partnern für deine Projekte.")
-                .setColor("#2ecc71")
-                .setFooter({ text: "System Online" });
+                .setColor("#2ecc71");
 
             const row = new ActionRowBuilder().addComponents(
                 new ButtonBuilder().setCustomId("start_teamup").setLabel("TEAM-UP").setStyle(ButtonStyle.Success)
             );
 
             await teamChan.send({ embeds: [embed], components: [row] });
-            console.log("✅ Team-Panel gesendet.");
-        } catch (e) { console.error("Fehler im Team-Channel:", e); }
+        } catch (e) { console.error("Fehler im Team-Channel Refresh:", e); }
     }
 }
 
 // --- READY EVENT ---
 client.once("ready", async () => {
-    console.log(`🚀 ${client.user.tag} ist bereit!`);
-    // Sofort nach dem Einloggen die Nachrichten senden
-    await sendFreshPanels();
+    console.log(`🚀 ${client.user.tag} ist online!`);
+    
+    // Panels sofort beim Start einmal senden
+    await refreshPanels();
+
+    // Alle 5 Minuten ausführen (Cron Syntax: Minute, Stunde, Tag, Monat, Wochentag)
+    cron.schedule('*/5 * * * *', async () => {
+        await refreshPanels();
+    });
 });
 
-// --- INTERACTION HANDLER (Buttons & Modals) ---
+// --- INTERACTION HANDLER ---
 client.on("interactionCreate", async interaction => {
-    
-    // START BUTTONS
     if (interaction.isButton()) {
         if (interaction.customId === "start_upload") {
             const modal = new ModalBuilder().setCustomId("upload_modal").setTitle("Piece Details");
             modal.addComponents(
                 new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("title").setLabel("Name").setStyle(TextInputStyle.Short).setRequired(true)),
                 new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("price").setLabel("Preis").setStyle(TextInputStyle.Short).setRequired(true)),
-                new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("url").setLabel("Link (Vinted/Web)").setStyle(TextInputStyle.Short).setRequired(true))
+                new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("url").setLabel("Link").setStyle(TextInputStyle.Short).setRequired(true))
             );
             return interaction.showModal(modal);
         }
-
         if (interaction.customId === "start_teamup") {
             const modal = new ModalBuilder().setCustomId("team_modal").setTitle("Team Suche");
             modal.addComponents(new ActionRowBuilder().addComponents(
@@ -109,7 +110,6 @@ client.on("interactionCreate", async interaction => {
         }
     }
 
-    // MODAL SUBMITS
     if (interaction.isModalSubmit()) {
         if (interaction.customId === "upload_modal") {
             activeUploads.set(interaction.user.id, {
@@ -118,22 +118,20 @@ client.on("interactionCreate", async interaction => {
                 url: interaction.fields.getTextInputValue("url"),
                 imageUrl: null
             });
-            return interaction.reply({ content: "⚠️ Lade jetzt **ein Foto** hoch und schreibe danach `done`.", ephemeral: true });
+            return interaction.reply({ content: "⚠️ Lade jetzt ein Foto hoch und schreibe danach `done`.", ephemeral: true });
         }
-
         if (interaction.customId === "team_modal") {
             const embed = new EmbedBuilder()
                 .setTitle("🤝 TEAM-UP GESUCH")
                 .setDescription(interaction.fields.getTextInputValue("desc"))
                 .setAuthor({ name: interaction.user.username, iconURL: interaction.user.displayAvatarURL() })
-                .setColor("#2ecc71")
-                .setTimestamp();
+                .setColor("#2ecc71");
             await interaction.channel.send({ embeds: [embed] });
-            return interaction.reply({ content: "Gesuch gepostet!", ephemeral: true });
+            return interaction.reply({ content: "Gepostet!", ephemeral: true });
         }
     }
 
-    // ITEM ACTIONS (SOLD, FAV, OFFER, STATS)
+    // ITEM ACTIONS
     if (interaction.isButton()) {
         const parts = interaction.customId.split("_");
         if (parts.length < 3) return;
@@ -141,17 +139,15 @@ client.on("interactionCreate", async interaction => {
         const isSeller = interaction.user.id === sellerId;
 
         if (action === "sold") {
-            if (!isSeller) return interaction.reply({ content: "Nur der Verkäufer kann das!", ephemeral: true });
+            if (!isSeller) return interaction.reply({ content: "Nur Verkäufer!", ephemeral: true });
             await interaction.message.delete().catch(() => {});
             return interaction.reply({ content: "Item gelöscht.", ephemeral: true });
         }
-
         if (action === "stats") {
-            if (!isSeller) return interaction.reply({ content: "Nur der Verkäufer kann das!", ephemeral: true });
+            if (!isSeller) return interaction.reply({ content: "Nur Verkäufer!", ephemeral: true });
             const stats = itemStats.get(itemId) || { favCount: 0 };
             return interaction.reply({ content: `Favoriten: ${stats.favCount}`, ephemeral: true });
         }
-
         if (action === "fav") {
             if (isSeller) return interaction.reply({ content: "Eigenes Item!", ephemeral: true });
             let stats = itemStats.get(itemId) || { favCount: 0, favUsers: [] };
@@ -173,9 +169,8 @@ client.on("interactionCreate", async interaction => {
             }
             const copy = EmbedBuilder.from(interaction.message.embeds[0]);
             await favChan.send({ content: "⭐ Gespeichert:", embeds: [copy] });
-            return interaction.reply({ content: "❤️ Favorisiert!", ephemeral: true });
+            return interaction.reply({ content: "Gespeichert!", ephemeral: true });
         }
-
         if (action === "offer") {
             if (isSeller) return interaction.reply({ content: "Eigenes Item!", ephemeral: true });
             const modal = new ModalBuilder().setCustomId(`moffer_${itemId}_${sellerId}`).setTitle("Angebot");
@@ -186,7 +181,7 @@ client.on("interactionCreate", async interaction => {
         }
     }
 
-    // OFFER SUBMIT & ACCEPT/DECLINE
+    // Offer handling & Acceptance
     if (interaction.isModalSubmit() && interaction.customId.startsWith("moffer")) {
         const [, itemId, sellerId] = interaction.customId.split("_");
         const price = interaction.fields.getTextInputValue("oprice");
@@ -203,8 +198,8 @@ client.on("interactionCreate", async interaction => {
             new ButtonBuilder().setCustomId(`acc_${channel.id}`).setLabel("Annehmen").setStyle(ButtonStyle.Success),
             new ButtonBuilder().setCustomId(`dec_${channel.id}`).setLabel("Ablehnen").setStyle(ButtonStyle.Danger)
         );
-        await channel.send({ content: `<@${sellerId}>! <@${interaction.user.id}> bietet **${price}**.`, components: [row] });
-        return interaction.reply({ content: "Verhandlungschannel erstellt!", ephemeral: true });
+        await channel.send({ content: `<@${sellerId}>! Angebot von <@${interaction.user.id}>: **${price}**`, components: [row] });
+        return interaction.reply({ content: "Kanal erstellt!", ephemeral: true });
     }
 
     if (interaction.isButton() && (interaction.customId.startsWith("acc") || interaction.customId.startsWith("dec"))) {
@@ -220,7 +215,7 @@ client.on("interactionCreate", async interaction => {
     }
 });
 
-// --- UPLOAD HANDLER ---
+// --- MESSAGE HANDLER ---
 client.on("messageCreate", async message => {
     if (message.author.bot || !activeUploads.has(message.author.id)) return;
     const data = activeUploads.get(message.author.id);
