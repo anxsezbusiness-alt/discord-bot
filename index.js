@@ -22,7 +22,7 @@ const client = new Client({
     ]
 });
 
-// --- KONFIGURATION (Railway Variablen) ---
+// --- KONFIGURATION ---
 const SELL_CHANNEL_ID = process.env.SELL_CHANNEL_ID || '1492261103315587354';
 const TEAM_CHANNEL_ID = process.env.TEAM_CHANNEL_ID;
 const SALES_CHANNEL_ID = process.env.SALES_CHANNEL_ID || '1492593772884660224';
@@ -210,7 +210,7 @@ async function countUserSales(salesChannel, userId) {
     return count;
 }
 
-async function announceSale(guild, sellerId) {
+async function announceSale(sellerId) {
     const salesChannel = await client.channels.fetch(SALES_CHANNEL_ID).catch(() => null);
     if (!salesChannel) return;
 
@@ -317,14 +317,21 @@ client.on('interactionCreate', async interaction => {
             const pieceInput = new TextInputBuilder()
                 .setCustomId('title')
                 .setLabel('Piece')
-                .setPlaceholder('z.B. Vintage Nike Hoodie L')
+                .setPlaceholder('z.B. Nike Hoodie')
                 .setStyle(TextInputStyle.Short)
                 .setRequired(true);
 
             const priceInput = new TextInputBuilder()
                 .setCustomId('price')
                 .setLabel('Preis')
-                .setPlaceholder('z.B. 45EUR inkl. Versand')
+                .setPlaceholder('z.B. 12EUR')
+                .setStyle(TextInputStyle.Short)
+                .setRequired(true);
+
+            const sizeInput = new TextInputBuilder()
+                .setCustomId('size')
+                .setLabel('Groesse')
+                .setPlaceholder('z.B. M / 38 / One Size')
                 .setStyle(TextInputStyle.Short)
                 .setRequired(true);
 
@@ -335,10 +342,19 @@ client.on('interactionCreate', async interaction => {
                 .setStyle(TextInputStyle.Short)
                 .setRequired(true);
 
+            const detailsInput = new TextInputBuilder()
+                .setCustomId('details')
+                .setLabel('Zustand / Farbe / Sonstiges')
+                .setPlaceholder('z.B. Sehr gut, schwarz, kaum getragen')
+                .setStyle(TextInputStyle.Paragraph)
+                .setRequired(false);
+
             modal.addComponents(
                 new ActionRowBuilder().addComponents(pieceInput),
                 new ActionRowBuilder().addComponents(priceInput),
-                new ActionRowBuilder().addComponents(urlInput)
+                new ActionRowBuilder().addComponents(sizeInput),
+                new ActionRowBuilder().addComponents(urlInput),
+                new ActionRowBuilder().addComponents(detailsInput)
             );
 
             return interaction.showModal(modal);
@@ -366,9 +382,10 @@ client.on('interactionCreate', async interaction => {
             activeUploads.set(interaction.user.id, {
                 title: interaction.fields.getTextInputValue('title'),
                 price: interaction.fields.getTextInputValue('price'),
+                size: interaction.fields.getTextInputValue('size'),
                 url: interaction.fields.getTextInputValue('url'),
-                imageUrl: null,
-                imageName: null
+                details: interaction.fields.getTextInputValue('details') || 'Keine weiteren Angaben',
+                imageUrl: null
             });
 
             return interaction.reply({
@@ -461,7 +478,7 @@ client.on('interactionCreate', async interaction => {
 
             await deleteFavoriteCopies(interaction.guild, itemId);
             await interaction.message.delete().catch(() => {});
-            await announceSale(interaction.guild, sellerId).catch(error => {
+            await announceSale(sellerId).catch(error => {
                 console.error('Fehler beim Sales-Post:', error.message);
             });
 
@@ -548,7 +565,7 @@ client.on('interactionCreate', async interaction => {
                     new TextInputBuilder()
                         .setCustomId('oprice')
                         .setLabel('Dein Preisangebot')
-                        .setPlaceholder('z.B. 40EUR')
+                        .setPlaceholder('z.B. 10EUR')
                         .setStyle(TextInputStyle.Short)
                         .setRequired(true)
                 )
@@ -570,25 +587,24 @@ client.on('messageCreate', async message => {
     const data = activeUploads.get(message.author.id);
     const imageAttachment = getImageAttachment(message);
 
-    if (imageAttachment && !data.imageUrl) {
+    if (imageAttachment) {
         data.imageUrl = imageAttachment.proxyURL || imageAttachment.url;
-        data.imageName = imageAttachment.name || 'piece-image.png';
-    }
-
-    // Bildnachricht nicht loeschen, damit Discord das Bild weiter ausliefern kann
-    if (imageAttachment && !message.content.trim()) {
-        return;
     }
 
     if (message.content.trim().toLowerCase() === 'done') {
         await message.delete().catch(() => {});
 
         if (!data.imageUrl) {
-            return message.channel.send({
-                content: `<@${message.author.id}> bitte lade erst ein Bild hoch, bevor du \`done\` schreibst.`
-            }).then(msg => {
-                setTimeout(() => msg.delete().catch(() => {}), 7000);
-            });
+            const warn = await message.channel.send({
+                content: `<@${message.author.id}> bitte lade zuerst ein Bild hoch und schreibe dann \`done\`.`
+            }).catch(() => null);
+
+            if (warn) {
+                setTimeout(() => {
+                    warn.delete().catch(() => {});
+                }, 7000);
+            }
+            return;
         }
 
         const itemId = Date.now().toString();
@@ -597,24 +613,19 @@ client.on('messageCreate', async message => {
             .setTitle(`📦 ${data.title}`)
             .addFields(
                 { name: '💰 Preis', value: data.price, inline: true },
-                { name: '👤 Verkaeufer', value: `<@${message.author.id}>`, inline: true }
+                { name: '📏 Groesse', value: data.size, inline: true },
+                { name: '👤 Verkaeufer', value: `<@${message.author.id}>`, inline: true },
+                { name: '📝 Details', value: data.details }
             )
             .setColor('#ffffff')
             .setFooter({ text: `Item-ID: ${itemId}` })
             .setImage(data.imageUrl);
-
-        const chan = await client.channels.fetch(SELL_CHANNEL_ID);
-        const sentMessage = await chan.send({ embeds: [embed] });
 
         const row = new ActionRowBuilder().addComponents(
             new ButtonBuilder()
                 .setLabel('VINTED')
                 .setStyle(ButtonStyle.Link)
                 .setURL(data.url),
-            new ButtonBuilder()
-                .setLabel('Zum Post')
-                .setStyle(ButtonStyle.Link)
-                .setURL(sentMessage.url),
             new ButtonBuilder()
                 .setCustomId(`fav_${itemId}_${message.author.id}`)
                 .setLabel('❤️ Fav')
@@ -629,7 +640,12 @@ client.on('messageCreate', async message => {
                 .setStyle(ButtonStyle.Danger)
         );
 
-        await sentMessage.edit({ components: [row] });
+        const chan = await client.channels.fetch(SELL_CHANNEL_ID);
+        await chan.send({
+            embeds: [embed],
+            components: [row]
+        });
+
         activeUploads.delete(message.author.id);
     }
 });
