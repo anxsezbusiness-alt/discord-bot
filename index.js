@@ -23,7 +23,7 @@ const client = new Client({
     ]
 });
 
-// --- KONFIGURATION ---
+// --- CONFIG ---
 const SELL_CHANNEL_ID = process.env.SELL_CHANNEL_ID || '1492261103315587354';
 const TEAM_CHANNEL_ID = process.env.TEAM_CHANNEL_ID || null;
 const SALES_CHANNEL_ID = process.env.SALES_CHANNEL_ID || '1492593772884660224';
@@ -97,7 +97,7 @@ async function buildImageFileFromAttachment(attachment) {
 
         return new AttachmentBuilder(buffer, { name: safeName });
     } catch (error) {
-        console.error('Bild konnte nicht heruntergeladen werden:', error.message);
+        console.error('Image could not be downloaded:', error.message);
         return null;
     }
 }
@@ -164,18 +164,18 @@ async function handleVipDeal(message) {
     const alertEmbed = EmbedBuilder.from(pieceData.embed)
         .setColor('#f1c40f')
         .setFooter({
-            text: `VIP Deal | ${pieceData.brand.toUpperCase()} | ${pieceData.currentPrice}EUR`
+            text: `VIP Deal | ${pieceData.brand.toUpperCase()} | ${pieceData.currentPrice} EUR`
         });
 
     const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
-            .setLabel('Zum Piece')
+            .setLabel('Open Piece')
             .setStyle(ButtonStyle.Link)
             .setURL(message.url)
     );
 
     await alertChannel.send({
-        content: `${vipMention} Marken-Piece erkannt: ${pieceData.brand} fuer ${pieceData.currentPrice}EUR`,
+        content: `${vipMention} Brand deal detected: ${pieceData.brand} for ${pieceData.currentPrice} EUR`,
         embeds: [alertEmbed],
         components: [row]
     });
@@ -200,7 +200,7 @@ async function deleteFavoriteCopies(guild, itemId) {
                 await copy.delete().catch(() => {});
             }
         } catch (error) {
-            console.error(`Fehler beim Loeschen der Favoriten in ${channel.name}:`, error.message);
+            console.error(`Error deleting favorites in ${channel.name}:`, error.message);
         }
     }
 }
@@ -244,16 +244,26 @@ async function announceSale(sellerId) {
     const currentSaleNumber = previousSales + 1;
 
     const embed = new EmbedBuilder()
-        .setTitle('💸 Neuer Verkauf')
-        .setDescription(`<@${sellerId}> hat so eben sein ${currentSaleNumber}. Piece verkauft!`)
+        .setTitle('💸 New Sale')
+        .setDescription(`<@${sellerId}> just sold their ${currentSaleNumber}${getOrdinalSuffix(currentSaleNumber)} piece!`)
         .setColor('#2ecc71')
         .setFooter({ text: `Sale-User-ID: ${sellerId}` })
         .setTimestamp();
 
     await salesChannel.send({
-        content: `<@${sellerId}> hat so eben sein ${currentSaleNumber}. Piece verkauft!`,
+        content: `<@${sellerId}> just sold their ${currentSaleNumber}${getOrdinalSuffix(currentSaleNumber)} piece!`,
         embeds: [embed]
     });
+}
+
+function getOrdinalSuffix(number) {
+    const mod10 = number % 10;
+    const mod100 = number % 100;
+
+    if (mod10 === 1 && mod100 !== 11) return 'st';
+    if (mod10 === 2 && mod100 !== 12) return 'nd';
+    if (mod10 === 3 && mod100 !== 13) return 'rd';
+    return 'th';
 }
 
 async function sendTempMessage(channel, content, ms = 7000) {
@@ -265,9 +275,9 @@ async function sendTempMessage(channel, content, ms = 7000) {
     }
 }
 
-// --- REFRESH FUNKTION ---
+// --- PANEL REFRESH ---
 async function refreshPanels() {
-    console.log(`[${new Date().toLocaleTimeString()}] Panels werden aktualisiert...`);
+    console.log(`[${new Date().toLocaleTimeString()}] Refreshing panels...`);
 
     try {
         const sellChan = await client.channels.fetch(SELL_CHANNEL_ID);
@@ -283,7 +293,7 @@ async function refreshPanels() {
 
             const embed = new EmbedBuilder()
                 .setTitle('📦 SELL YOUR PIECE')
-                .setDescription('Klicke unten auf den Button, um dein Item zum Verkauf anzubieten.')
+                .setDescription('Click the button below to list your item for sale.')
                 .setColor('#000000');
 
             const row = new ActionRowBuilder().addComponents(
@@ -296,7 +306,7 @@ async function refreshPanels() {
             await sellChan.send({ embeds: [embed], components: [row] });
         }
     } catch (err) {
-        console.error('Fehler Sell-Channel:', err.message);
+        console.error('Sell channel error:', err.message);
     }
 
     try {
@@ -315,7 +325,7 @@ async function refreshPanels() {
 
             const embed = new EmbedBuilder()
                 .setTitle('🤝 FIND A TEAM')
-                .setDescription('Suche hier nach Partnern fuer deine Projekte.')
+                .setDescription('Find partners for your projects here.')
                 .setColor('#2ecc71');
 
             const row = new ActionRowBuilder().addComponents(
@@ -328,13 +338,13 @@ async function refreshPanels() {
             await teamChan.send({ embeds: [embed], components: [row] });
         }
     } catch (err) {
-        console.error('Fehler Team-Channel:', err.message);
+        console.error('Team channel error:', err.message);
     }
 }
 
 // --- READY ---
 client.once('ready', async () => {
-    console.log(`🚀 ${client.user.tag} ist online!`);
+    console.log(`🚀 ${client.user.tag} is online!`);
     await refreshPanels();
     cron.schedule('*/5 * * * *', async () => {
         await refreshPanels();
@@ -352,28 +362,28 @@ client.on('interactionCreate', async interaction => {
             const pieceInput = new TextInputBuilder()
                 .setCustomId('title')
                 .setLabel('Piece')
-                .setPlaceholder('z.B. Nike Hoodie')
+                .setPlaceholder('e.g. Nike Hoodie')
                 .setStyle(TextInputStyle.Short)
                 .setRequired(true);
 
             const brandInput = new TextInputBuilder()
                 .setCustomId('brand')
-                .setLabel('Marke')
-                .setPlaceholder('z.B. Nike')
+                .setLabel('Brand')
+                .setPlaceholder('e.g. Nike')
                 .setStyle(TextInputStyle.Short)
                 .setRequired(true);
 
             const priceInput = new TextInputBuilder()
                 .setCustomId('price')
-                .setLabel('Preis')
-                .setPlaceholder('z.B. 12EUR')
+                .setLabel('Price')
+                .setPlaceholder('e.g. 12 EUR')
                 .setStyle(TextInputStyle.Short)
                 .setRequired(true);
 
             const sizeInput = new TextInputBuilder()
                 .setCustomId('size')
-                .setLabel('Groesse')
-                .setPlaceholder('z.B. M / 38 / One Size')
+                .setLabel('Size')
+                .setPlaceholder('e.g. M / 38 / One Size')
                 .setStyle(TextInputStyle.Short)
                 .setRequired(true);
 
@@ -398,12 +408,12 @@ client.on('interactionCreate', async interaction => {
         if (interaction.customId === 'start_teamup') {
             const modal = new ModalBuilder()
                 .setCustomId('team_modal')
-                .setTitle('Team Suche');
+                .setTitle('Find a Team');
 
             const descInput = new TextInputBuilder()
                 .setCustomId('desc')
-                .setLabel('Deine Suche')
-                .setPlaceholder('z.B. Suche jemanden fuer ein 50/50 Resell Projekt in Berlin...')
+                .setLabel('What are you looking for?')
+                .setPlaceholder('e.g. Looking for someone for a 50/50 resell project in Berlin...')
                 .setStyle(TextInputStyle.Paragraph)
                 .setRequired(true);
 
@@ -423,14 +433,14 @@ client.on('interactionCreate', async interaction => {
             });
 
             return interaction.reply({
-                content: 'Sende jetzt genau **eine Nachricht** mit deinem **Bild** und dem Text `done`. Diese Nachricht wird danach automatisch geloescht.',
+                content: 'Now send exactly one message with your image attached and the text `done`. That message will be deleted automatically afterwards.',
                 ephemeral: true
             });
         }
 
         if (interaction.customId === 'team_modal') {
             const embed = new EmbedBuilder()
-                .setTitle('🤝 TEAM-UP GESUCH')
+                .setTitle('🤝 TEAM-UP REQUEST')
                 .setDescription(interaction.fields.getTextInputValue('desc'))
                 .setAuthor({
                     name: interaction.user.username,
@@ -440,7 +450,7 @@ client.on('interactionCreate', async interaction => {
                 .setTimestamp();
 
             await interaction.channel.send({ embeds: [embed] });
-            return interaction.reply({ content: 'Dein Gesuch wurde gepostet!', ephemeral: true });
+            return interaction.reply({ content: 'Your request has been posted!', ephemeral: true });
         }
 
         if (interaction.customId.startsWith('moffer_')) {
@@ -448,14 +458,14 @@ client.on('interactionCreate', async interaction => {
 
             if (!itemId || !sellerId) {
                 return interaction.reply({
-                    content: 'Das Angebot konnte nicht verarbeitet werden.',
+                    content: 'The offer could not be processed.',
                     ephemeral: true
                 });
             }
 
             if (interaction.user.id === sellerId) {
                 return interaction.reply({
-                    content: 'Du kannst dir selbst kein Angebot machen!',
+                    content: 'You cannot make an offer to yourself!',
                     ephemeral: true
                 });
             }
@@ -465,17 +475,17 @@ client.on('interactionCreate', async interaction => {
 
             if (!seller) {
                 return interaction.reply({
-                    content: 'Der Verkaeufer konnte nicht gefunden werden.',
+                    content: 'The seller could not be found.',
                     ephemeral: true
                 });
             }
 
             const offerEmbed = new EmbedBuilder()
-                .setTitle('📩 Neues Angebot')
+                .setTitle('📩 New Offer')
                 .addFields(
-                    { name: 'Item-ID', value: itemId, inline: true },
-                    { name: 'Angebot', value: offerPrice, inline: true },
-                    { name: 'Von', value: `<@${interaction.user.id}>`, inline: true }
+                    { name: 'Item ID', value: itemId, inline: true },
+                    { name: 'Offer', value: offerPrice, inline: true },
+                    { name: 'From', value: `<@${interaction.user.id}>`, inline: true }
                 )
                 .setColor('#27ae60')
                 .setTimestamp();
@@ -483,13 +493,13 @@ client.on('interactionCreate', async interaction => {
             try {
                 await seller.send({ embeds: [offerEmbed] });
                 return interaction.reply({
-                    content: 'Dein Angebot wurde dem Verkaeufer gesendet.',
+                    content: 'Your offer has been sent to the seller.',
                     ephemeral: true
                 });
             } catch (error) {
-                console.error('Fehler beim Senden des Angebots:', error.message);
+                console.error('Error sending offer:', error.message);
                 return interaction.reply({
-                    content: 'Ich konnte dem Verkaeufer keine DM schicken.',
+                    content: 'I could not send a DM to the seller.',
                     ephemeral: true
                 });
             }
@@ -505,7 +515,7 @@ client.on('interactionCreate', async interaction => {
         if (action === 'sold') {
             if (interaction.user.id !== sellerId) {
                 return interaction.reply({
-                    content: 'Nur der Verkaeufer kann das!',
+                    content: 'Only the seller can do that!',
                     ephemeral: true
                 });
             }
@@ -513,11 +523,11 @@ client.on('interactionCreate', async interaction => {
             await deleteFavoriteCopies(interaction.guild, itemId);
             await interaction.message.delete().catch(() => {});
             await announceSale(sellerId).catch(error => {
-                console.error('Fehler beim Sales-Post:', error.message);
+                console.error('Error posting sale message:', error.message);
             });
 
             return interaction.reply({
-                content: 'Item wurde geloescht, Favoriten bereinigt und der Verkauf wurde gezaehlt.',
+                content: 'Item deleted, favorites cleaned up, and sale counted.',
                 ephemeral: true
             });
         }
@@ -525,7 +535,7 @@ client.on('interactionCreate', async interaction => {
         if (action === 'fav') {
             if (interaction.user.id === sellerId) {
                 return interaction.reply({
-                    content: 'Du kannst dein eigenes Piece nicht favorisieren!',
+                    content: 'You cannot favorite your own piece!',
                     ephemeral: true
                 });
             }
@@ -555,7 +565,7 @@ client.on('interactionCreate', async interaction => {
 
             if (alreadySaved) {
                 return interaction.reply({
-                    content: 'Dieses Piece ist schon in deinen Favoriten.',
+                    content: 'This piece is already in your favorites.',
                     ephemeral: true
                 });
             }
@@ -565,19 +575,19 @@ client.on('interactionCreate', async interaction => {
 
             const favoriteRow = new ActionRowBuilder().addComponents(
                 new ButtonBuilder()
-                    .setLabel('Zum Original')
+                    .setLabel('Open Original')
                     .setStyle(ButtonStyle.Link)
                     .setURL(interaction.message.url)
             );
 
             await favChan.send({
-                content: '⭐ Dieses Piece hast du gespeichert:',
+                content: '⭐ You saved this piece:',
                 embeds: [originalEmbed],
                 components: [favoriteRow]
             });
 
             return interaction.reply({
-                content: 'In deinen Favoriten gespeichert!',
+                content: 'Saved to your favorites!',
                 ephemeral: true
             });
         }
@@ -585,21 +595,21 @@ client.on('interactionCreate', async interaction => {
         if (action === 'offer') {
             if (interaction.user.id === sellerId) {
                 return interaction.reply({
-                    content: 'Du kannst dir selbst kein Angebot machen!',
+                    content: 'You cannot make an offer to yourself!',
                     ephemeral: true
                 });
             }
 
             const modal = new ModalBuilder()
                 .setCustomId(`moffer_${itemId}_${sellerId}`)
-                .setTitle('Angebot senden');
+                .setTitle('Send Offer');
 
             modal.addComponents(
                 new ActionRowBuilder().addComponents(
                     new TextInputBuilder()
                         .setCustomId('oprice')
-                        .setLabel('Dein Preisangebot')
-                        .setPlaceholder('z.B. 10EUR')
+                        .setLabel('Your price offer')
+                        .setPlaceholder('e.g. 10 EUR')
                         .setStyle(TextInputStyle.Short)
                         .setRequired(true)
                 )
@@ -613,7 +623,7 @@ client.on('interactionCreate', async interaction => {
 // --- MESSAGE CREATE ---
 client.on('messageCreate', async message => {
     await handleVipDeal(message).catch(error => {
-        console.error('VIP-Erkennung fehlgeschlagen:', error.message);
+        console.error('VIP detection failed:', error.message);
     });
 
     if (message.author.bot || !activeUploads.has(message.author.id)) return;
@@ -625,7 +635,7 @@ client.on('messageCreate', async message => {
     if (content !== 'done' || !imageAttachment) {
         await sendTempMessage(
             message.channel,
-            `<@${message.author.id}> sende bitte **eine einzige Nachricht** mit **Bild + done** zusammen.`,
+            `<@${message.author.id}> please send exactly one message with an image attached and the text **done**.`,
             6000
         );
         return;
@@ -638,7 +648,7 @@ client.on('messageCreate', async message => {
     if (!imageFile) {
         await sendTempMessage(
             message.channel,
-            `<@${message.author.id}> dein Bild konnte nicht verarbeitet werden. Bitte versuche es nochmal mit **Bild + done** in einer Nachricht.`,
+            `<@${message.author.id}> your image could not be processed. Please try again with **image + done** in one message.`,
             7000
         );
         return;
@@ -649,9 +659,9 @@ client.on('messageCreate', async message => {
     const embed = new EmbedBuilder()
         .setTitle(`📦 ${uploadData.brand} ${uploadData.title}`)
         .addFields(
-            { name: '💰 Preis', value: uploadData.price, inline: true },
-            { name: '📏 Groesse', value: uploadData.size, inline: true },
-            { name: '👤 Verkaeufer', value: `<@${message.author.id}>`, inline: true }
+            { name: '💰 Price', value: uploadData.price, inline: true },
+            { name: '📏 Size', value: uploadData.size, inline: true },
+            { name: '👤 Seller', value: `<@${message.author.id}>`, inline: true }
         )
         .setColor('#ffffff')
         .setFooter({ text: `Item-ID: ${itemId}` })
@@ -687,7 +697,7 @@ client.on('messageCreate', async message => {
 });
 
 if (!process.env.TOKEN) {
-    console.error('TOKEN fehlt in den Railway Variables.');
+    console.error('TOKEN is missing in Railway variables.');
     process.exit(1);
 }
 
