@@ -21,19 +21,17 @@ const client = new Client({
     ]
 });
 
-// --- KONFIGURATION ---
-// Stelle sicher, dass diese Namen EXAKT so in Railway bei "Variables" stehen!
+// --- KONFIGURATION (Railway Variablen) ---
 const SELL_CHANNEL_ID = process.env.SELL_CHANNEL_ID; 
 const TEAM_CHANNEL_ID = process.env.TEAM_CHANNEL_ID;
 
 const activeUploads = new Map();
-const itemStats = new Map();
 
 // --- REFRESH FUNKTION ---
 async function refreshPanels() {
-    console.log(`[${new Date().toLocaleTimeString()}] 🔄 Starte Refresh...`);
+    console.log(`[${new Date().toLocaleTimeString()}] 🔄 Panels werden aktualisiert...`);
 
-    // 1. SELL PANEL (latest-goods)
+    // 1. SELL PANEL
     try {
         const sellChan = await client.channels.fetch(SELL_CHANNEL_ID);
         if (sellChan) {
@@ -43,7 +41,7 @@ async function refreshPanels() {
 
             const embed = new EmbedBuilder()
                 .setTitle("📦 SELL YOUR PIECE")
-                .setDescription("Klicke unten, um dein Piece anzubieten.")
+                .setDescription("Klicke unten auf den Button, um dein Item zum Verkauf anzubieten.")
                 .setColor("#000000");
 
             const row = new ActionRowBuilder().addComponents(
@@ -51,13 +49,10 @@ async function refreshPanels() {
             );
 
             await sellChan.send({ embeds: [embed], components: [row] });
-            console.log("✅ Sell-Panel aktualisiert.");
         }
-    } catch (err) {
-        console.error("❌ Fehler im Sell-Channel: ID falsch oder keine Rechte!", err.message);
-    }
+    } catch (err) { console.error("Fehler Sell-Channel:", err.message); }
 
-    // 2. TEAM PANEL (find-crew)
+    // 2. TEAM PANEL
     try {
         const teamChan = await client.channels.fetch(TEAM_CHANNEL_ID);
         if (teamChan) {
@@ -67,7 +62,7 @@ async function refreshPanels() {
 
             const embed = new EmbedBuilder()
                 .setTitle("🤝 FIND A TEAM")
-                .setDescription("Suche hier nach Partnern.")
+                .setDescription("Suche hier nach Partnern für deine Projekte.")
                 .setColor("#2ecc71");
 
             const row = new ActionRowBuilder().addComponents(
@@ -75,48 +70,69 @@ async function refreshPanels() {
             );
 
             await teamChan.send({ embeds: [embed], components: [row] });
-            console.log("✅ Team-Panel aktualisiert.");
         }
-    } catch (err) {
-        console.error("❌ Fehler im Team-Channel: ID falsch oder keine Rechte!", err.message);
-    }
+    } catch (err) { console.error("Fehler Team-Channel:", err.message); }
 }
 
 // --- EVENTS ---
 client.once("ready", async () => {
-    console.log(`🚀 ${client.user.tag} ist online und bereit!`);
-    
-    // Panels sofort beim Start senden
+    console.log(`🚀 ${client.user.tag} ist online!`);
     await refreshPanels();
-
-    // Alle 5 Minuten Refresh
-    cron.schedule('*/5 * * * *', async () => {
-        await refreshPanels();
-    });
+    cron.schedule('*/5 * * * *', async () => { await refreshPanels(); });
 });
 
 client.on("interactionCreate", async interaction => {
-    // Buttons für Modals
+    
+    // --- BUTTONS FÜR MODALS ---
     if (interaction.isButton()) {
         if (interaction.customId === "start_upload") {
             const modal = new ModalBuilder().setCustomId("upload_modal").setTitle("Piece Details");
+
+            const pieceInput = new TextInputBuilder()
+                .setCustomId("title")
+                .setLabel("Piece")
+                .setPlaceholder("z.B. Vintage Nike Hoodie L")
+                .setStyle(TextInputStyle.Short)
+                .setRequired(true);
+
+            const priceInput = new TextInputBuilder()
+                .setCustomId("price")
+                .setLabel("Preis")
+                .setPlaceholder("z.B. 45€ inkl. Versand")
+                .setStyle(TextInputStyle.Short)
+                .setRequired(true);
+
+            const urlInput = new TextInputBuilder()
+                .setCustomId("url")
+                .setLabel("Vinted Link")
+                .setPlaceholder("https://www.vinted.de/items/...")
+                .setStyle(TextInputStyle.Short)
+                .setRequired(true);
+
             modal.addComponents(
-                new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("title").setLabel("Name").setStyle(TextInputStyle.Short).setRequired(true)),
-                new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("price").setLabel("Preis").setStyle(TextInputStyle.Short).setRequired(true)),
-                new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("url").setLabel("Link (Vinted/Web)").setStyle(TextInputStyle.Short).setRequired(true))
+                new ActionRowBuilder().addComponents(pieceInput),
+                new ActionRowBuilder().addComponents(priceInput),
+                new ActionRowBuilder().addComponents(urlInput)
             );
             return interaction.showModal(modal);
         }
+
         if (interaction.customId === "start_teamup") {
             const modal = new ModalBuilder().setCustomId("team_modal").setTitle("Team Suche");
-            modal.addComponents(new ActionRowBuilder().addComponents(
-                new TextInputBuilder().setCustomId("desc").setLabel("Deine Suche").setStyle(TextInputStyle.Paragraph).setRequired(true)
-            ));
+
+            const descInput = new TextInputBuilder()
+                .setCustomId("desc")
+                .setLabel("Deine Suche")
+                .setPlaceholder("z.B. Suche jemanden für ein 50/50 Resell Projekt in Berlin...")
+                .setStyle(TextInputStyle.Paragraph)
+                .setRequired(true);
+
+            modal.addComponents(new ActionRowBuilder().addComponents(descInput));
             return interaction.showModal(modal);
         }
     }
 
-    // Modal Submits
+    // --- MODAL SUBMITS ---
     if (interaction.isModalSubmit()) {
         if (interaction.customId === "upload_modal") {
             activeUploads.set(interaction.user.id, {
@@ -125,8 +141,9 @@ client.on("interactionCreate", async interaction => {
                 url: interaction.fields.getTextInputValue("url"),
                 imageUrl: null
             });
-            return interaction.reply({ content: "⚠️ Bitte lade jetzt ein Foto hoch und schreibe danach `done`.", ephemeral: true });
+            return interaction.reply({ content: "⚠️ Bitte lade jetzt ein **Foto** hoch und schreibe danach `done` in diesen Kanal.", ephemeral: true });
         }
+
         if (interaction.customId === "team_modal") {
             const embed = new EmbedBuilder()
                 .setTitle("🤝 TEAM-UP GESUCH")
@@ -135,11 +152,11 @@ client.on("interactionCreate", async interaction => {
                 .setColor("#2ecc71")
                 .setTimestamp();
             await interaction.channel.send({ embeds: [embed] });
-            return interaction.reply({ content: "Gesuch gepostet!", ephemeral: true });
+            return interaction.reply({ content: "Dein Gesuch wurde gepostet!", ephemeral: true });
         }
     }
 
-    // Item Aktionen (SOLD, FAV, OFFER)
+    // --- ITEM ACTIONS (SOLD, FAV, OFFER) ---
     if (interaction.isButton()) {
         const parts = interaction.customId.split("_");
         if (parts.length < 3) return;
@@ -148,11 +165,11 @@ client.on("interactionCreate", async interaction => {
         if (action === "sold") {
             if (interaction.user.id !== sellerId) return interaction.reply({ content: "Nur der Verkäufer kann das!", ephemeral: true });
             await interaction.message.delete().catch(() => {});
-            return interaction.reply({ content: "Item entfernt.", ephemeral: true });
+            return interaction.reply({ content: "Item wurde gelöscht.", ephemeral: true });
         }
 
         if (action === "fav") {
-            if (interaction.user.id === sellerId) return interaction.reply({ content: "Eigenes Item!", ephemeral: true });
+            if (interaction.user.id === sellerId) return interaction.reply({ content: "Du kannst dein eigenes Piece nicht favorisieren!", ephemeral: true });
             
             let favChan = interaction.guild.channels.cache.find(c => c.name === `favs-${interaction.user.username.toLowerCase()}`);
             if (!favChan) {
@@ -166,22 +183,22 @@ client.on("interactionCreate", async interaction => {
                 });
             }
             const copy = EmbedBuilder.from(interaction.message.embeds[0]);
-            await favChan.send({ content: "⭐ Gespeichert:", embeds: [copy] });
-            return interaction.reply({ content: "In Favoriten gespeichert!", ephemeral: true });
+            await favChan.send({ content: "⭐ Dieses Piece hast du gespeichert:", embeds: [copy] });
+            return interaction.reply({ content: "In deinen Favoriten gespeichert!", ephemeral: true });
         }
 
         if (action === "offer") {
-            if (interaction.user.id === sellerId) return interaction.reply({ content: "Eigenes Item!", ephemeral: true });
-            const modal = new ModalBuilder().setCustomId(`moffer_${itemId}_${sellerId}`).setTitle("Angebot");
+            if (interaction.user.id === sellerId) return interaction.reply({ content: "Du kannst dir selbst kein Angebot machen!", ephemeral: true });
+            const modal = new ModalBuilder().setCustomId(`moffer_${itemId}_${sellerId}`).setTitle("Angebot senden");
             modal.addComponents(new ActionRowBuilder().addComponents(
-                new TextInputBuilder().setCustomId("oprice").setLabel("Dein Preisangebot").setStyle(TextInputStyle.Short).setRequired(true)
+                new TextInputBuilder().setCustomId("oprice").setLabel("Dein Preisangebot").setPlaceholder("z.B. 40€").setStyle(TextInputStyle.Short).setRequired(true)
             ));
             return interaction.showModal(modal);
         }
     }
 });
 
-// --- UPLOAD LOGIK ---
+// --- FOTO & DONE LOGIK ---
 client.on("messageCreate", async message => {
     if (message.author.bot || !activeUploads.has(message.author.id)) return;
     const data = activeUploads.get(message.author.id);
@@ -198,7 +215,7 @@ client.on("messageCreate", async message => {
             .setTitle(`📦 ${data.title}`)
             .addFields(
                 { name: "💰 Preis", value: data.price, inline: true },
-                { name: "👤 Seller", value: `<@${message.author.id}>`, inline: true }
+                { name: "👤 Verkäufer", value: `<@${message.author.id}>`, inline: true }
             )
             .setColor("#ffffff");
         if (data.imageUrl) embed.setImage(data.imageUrl);
