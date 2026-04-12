@@ -20,208 +20,222 @@ const client = new Client({
     ]
 });
 
-// CONFIG
-const SELL_CHANNEL_ID = "1492261103315587354";
-const TEAM_CHANNEL_ID = "1492261676798709760";
+// Konfiguration über Railway Environment Variables
+const SELL_CHANNEL_ID = process.env.SELL_CHANNEL_ID;
+const TEAM_CHANNEL_ID = process.env.TEAM_CHANNEL_ID;
 
-// Speicher-Strukturen
 const activeUploads = new Map();
-const items = new Map(); // Speichert alle aktiven Inserate
-const favorites = new Map(); // user_id -> Array of item_ids
+const itemStats = new Map(); // itemId -> { favCount: 0, favUsers: [] }
 
-// ================= HELPER =================
-async function getChannel(id) {
-    return await client.channels.fetch(id).catch(() => null);
-}
-
-// ================= PANELS =================
+// --- PANELS REFRESH BEIM START ---
 async function refreshPanels() {
-    const channel = await getChannel(SELL_CHANNEL_ID);
-    if (!channel) return;
+    try {
+        const sellChan = await client.channels.fetch(SELL_CHANNEL_ID);
+        if (sellChan) {
+            const msgs = await sellChan.messages.fetch({ limit: 10 });
+            const old = msgs.filter(m => m.author.id === client.user.id && m.embeds[0]?.title === "📦 SELL YOUR PIECE");
+            for (const m of old.values()) await m.delete().catch(() => {});
 
-    const messages = await channel.messages.fetch({ limit: 50 }).catch(() => null);
-    if (!messages) return;
+            const embed = new EmbedBuilder()
+                .setTitle("📦 SELL YOUR PIECE")
+                .setDescription("Klicke auf den Button, um dein Inserat zu erstellen.")
+                .setColor("#000000");
+            const row = new ActionRowBuilder().addComponents(
+                new ButtonBuilder().setCustomId("start_upload").setLabel("SELL PIECE").setStyle(ButtonStyle.Primary)
+            );
+            await sellChan.send({ embeds: [embed], components: [row] });
+        }
 
-    // Nur das Haupt-Panel löschen/neu senden
-    const old = messages.filter(m => m.author.id === client.user.id && m.embeds[0]?.title === "📦 SELL YOUR PIECE");
-    for (const msg of old.values()) await msg.delete().catch(() => {});
+        const teamChan = await client.channels.fetch(TEAM_CHANNEL_ID);
+        if (teamChan) {
+            const msgs = await teamChan.messages.fetch({ limit: 10 });
+            const old = msgs.filter(m => m.author.id === client.user.id && m.embeds[0]?.title === "🤝 FIND A TEAM");
+            for (const m of old.values()) await m.delete().catch(() => {});
 
-    const embed = new EmbedBuilder()
-        .setTitle("📦 SELL YOUR PIECE")
-        .setDescription("Klicke unten, um dein Item zu listen.")
-        .setColor("#000000");
-
-    const row = new ActionRowBuilder().addComponents(
-        new ButtonBuilder().setCustomId("start_upload").setLabel("SELL PIECE").setStyle(ButtonStyle.Primary)
-    );
-
-    await channel.send({ embeds: [embed], components: [row] });
+            const embed = new EmbedBuilder()
+                .setTitle("🤝 FIND A TEAM")
+                .setDescription("Suche hier nach Partnern oder Teams.")
+                .setColor("#2ecc71");
+            const row = new ActionRowBuilder().addComponents(
+                new ButtonBuilder().setCustomId("start_teamup").setLabel("TEAM-UP").setStyle(ButtonStyle.Success)
+            );
+            await teamChan.send({ embeds: [embed], components: [row] });
+        }
+    } catch (err) { console.error("Fehler beim Refresh:", err); }
 }
 
-client.once("ready", async () => {
-    console.log(`✅ ONLINE: ${client.user.tag}`);
-    await refreshPanels();
+client.once("ready", () => {
+    console.log(`✅ Bot ${client.user.tag} ist online!`);
+    refreshPanels();
 });
 
-// ================= INTERACTION HANDLER =================
+// --- INTERACTION HANDLER ---
 client.on("interactionCreate", async interaction => {
     
-    // 1. MODAL ÖFFNEN
-    if (interaction.isButton() && interaction.customId === "start_upload") {
-        const modal = new ModalBuilder().setCustomId("upload_modal").setTitle("Sell your piece");
-        modal.addComponents(
-            new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("title").setLabel("Name").setStyle(TextInputStyle.Short).setRequired(true)),
-            new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("price").setLabel("Preis").setStyle(TextInputStyle.Short).setRequired(true)),
-            new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("url").setLabel("Vinted Link").setStyle(TextInputStyle.Short).setRequired(true))
-        );
-        return interaction.showModal(modal);
-    }
-
-    // 2. MODAL SUBMIT
-    if (interaction.isModalSubmit() && interaction.customId === "upload_modal") {
-        activeUploads.set(interaction.user.id, {
-            title: interaction.fields.getTextInputValue("title"),
-            price: interaction.fields.getTextInputValue("price"),
-            url: interaction.fields.getTextInputValue("url"),
-            images: []
-        });
-        return interaction.reply({ content: "Schicke jetzt die Fotos hoch und schreibe danach `done`.", ephemeral: true });
-    }
-
-    // 3. FAVORITEN & OFFERS & SOLD
+    // BUTTONS: MODALS ÖFFNEN
     if (interaction.isButton()) {
-        const [action, itemId, sellerId] = interaction.customId.split("_");
-
-        // FAVORISIEREN
-        if (action === "fav") {
-            let userFavs = favorites.get(interaction.user.id) || [];
-            if (!userFavs.includes(itemId)) {
-                userFavs.push(itemId);
-                favorites.set(interaction.user.id, userFavs);
-                return interaction.reply({ content: "Item zu deinen Favoriten hinzugefügt!", ephemeral: true });
-            } else {
-                return interaction.reply({ content: "Hattest du schon!", ephemeral: true });
-            }
+        if (interaction.customId === "start_upload") {
+            const modal = new ModalBuilder().setCustomId("upload_modal").setTitle("Piece Details");
+            modal.addComponents(
+                new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("title").setLabel("Name").setStyle(TextInputStyle.Short).setRequired(true)),
+                new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("price").setLabel("Preis").setStyle(TextInputStyle.Short).setRequired(true)),
+                new ActionRowBuilder().addComponents(new TextInputBuilder().setCustomId("url").setLabel("Link (Vinted/Web)").setStyle(TextInputStyle.Short).setRequired(true))
+            );
+            return interaction.showModal(modal);
         }
 
-        // SOLD (Nur Verkäufer)
-        if (action === "sold") {
-            if (interaction.user.id !== sellerId) return interaction.reply({ content: "Nur der Verkäufer kann das!", ephemeral: true });
-            await interaction.message.delete();
-            items.delete(itemId);
-            return interaction.reply({ content: "Als verkauft markiert und gelöscht!", ephemeral: true });
-        }
-
-        // OFFER SENDEN (Käufer klickt "Offer")
-        if (action === "offer") {
-            if (interaction.user.id === sellerId) return interaction.reply({ content: "Eigener Artikel!", ephemeral: true });
-            
-            const modal = new ModalBuilder().setCustomId(`sendoffer_${itemId}_${sellerId}`).setTitle("Angebot senden");
+        if (interaction.customId === "start_teamup") {
+            const modal = new ModalBuilder().setCustomId("team_modal").setTitle("Team Suche");
             modal.addComponents(new ActionRowBuilder().addComponents(
-                new TextInputBuilder().setCustomId("offer_price").setLabel("Dein Preisvorschlag").setStyle(TextInputStyle.Short)
+                new TextInputBuilder().setCustomId("desc").setLabel("Deine Suche").setStyle(TextInputStyle.Paragraph).setRequired(true)
             ));
             return interaction.showModal(modal);
         }
     }
 
-    // 4. OFFER MODAL SUBMIT (Verkäufer bekommt Channel-Anfrage)
-    if (interaction.isModalSubmit() && interaction.customId.startsWith("sendoffer")) {
-        const [, itemId, sellerId] = interaction.customId.split("_");
-        const price = interaction.fields.getTextInputValue("offer_price");
-        const buyer = interaction.user;
+    // MODAL SUBMITS
+    if (interaction.isModalSubmit()) {
+        if (interaction.customId === "upload_modal") {
+            activeUploads.set(interaction.user.id, {
+                title: interaction.fields.getTextInputValue("title"),
+                price: interaction.fields.getTextInputValue("price"),
+                url: interaction.fields.getTextInputValue("url"),
+                imageUrl: null
+            });
+            return interaction.reply({ content: "Lade jetzt **ein Foto** hoch und schreibe danach `done`.", ephemeral: true });
+        }
 
-        // Erstelle privaten Verhandlungs-Channel
-        const guild = interaction.guild;
-        const channel = await guild.channels.create({
-            name: `offer-${buyer.username}`,
+        if (interaction.customId === "team_modal") {
+            const embed = new EmbedBuilder()
+                .setTitle("🤝 TEAM-UP GESUCH")
+                .setDescription(interaction.fields.getTextInputValue("desc"))
+                .setAuthor({ name: interaction.user.username, iconURL: interaction.user.displayAvatarURL() })
+                .setColor("#2ecc71");
+            await interaction.channel.send({ embeds: [embed] });
+            return interaction.reply({ content: "Gepostet!", ephemeral: true });
+        }
+    }
+
+    // PIECE INTERACTIONS (FAV, OFFER, SOLD, STATS)
+    if (interaction.isButton()) {
+        const parts = interaction.customId.split("_");
+        if (parts.length < 3) return;
+        const [action, itemId, sellerId] = parts;
+        const isSeller = interaction.user.id === sellerId;
+
+        if (action === "sold") {
+            if (!isSeller) return interaction.reply({ content: "Nur Verkäufer!", ephemeral: true });
+            await interaction.message.delete();
+            return interaction.reply({ content: "Item gelöscht.", ephemeral: true });
+        }
+
+        if (action === "stats") {
+            if (!isSeller) return interaction.reply({ content: "Nur Verkäufer!", ephemeral: true });
+            const stats = itemStats.get(itemId) || { favCount: 0 };
+            return interaction.reply({ content: `Anzahl Favoriten: ${stats.favCount}`, ephemeral: true });
+        }
+
+        if (action === "fav") {
+            if (isSeller) return interaction.reply({ content: "Eigenes Item!", ephemeral: true });
+            let stats = itemStats.get(itemId) || { favCount: 0, favUsers: [] };
+            if (stats.favUsers.includes(interaction.user.id)) return interaction.reply({ content: "Schon favorisiert!", ephemeral: true });
+            
+            stats.favCount++;
+            stats.favUsers.push(interaction.user.id);
+            itemStats.set(itemId, stats);
+
+            let favChan = interaction.guild.channels.cache.find(c => c.name === `favs-${interaction.user.username.toLowerCase()}`);
+            if (!favChan) {
+                favChan = await interaction.guild.channels.create({
+                    name: `favs-${interaction.user.username}`,
+                    type: ChannelType.GuildText,
+                    permissionOverwrites: [
+                        { id: interaction.guild.id, deny: [PermissionsBitField.Flags.ViewChannel] },
+                        { id: interaction.user.id, allow: [PermissionsBitField.Flags.ViewChannel] }
+                    ]
+                });
+            }
+            const copy = EmbedBuilder.from(interaction.message.embeds[0]);
+            await favChan.send({ content: "⭐ Gespeichert:", embeds: [copy] });
+            return interaction.reply({ content: "Gespeichert!", ephemeral: true });
+        }
+
+        if (action === "offer") {
+            if (isSeller) return interaction.reply({ content: "Eigenes Item!", ephemeral: true });
+            const modal = new ModalBuilder().setCustomId(`moffer_${itemId}_${sellerId}`).setTitle("Angebot");
+            modal.addComponents(new ActionRowBuilder().addComponents(
+                new TextInputBuilder().setCustomId("oprice").setLabel("Dein Preis").setStyle(TextInputStyle.Short)
+            ));
+            return interaction.showModal(modal);
+        }
+    }
+
+    // OFFER SUBMIT & ACCEPT/DECLINE
+    if (interaction.isModalSubmit() && interaction.customId.startsWith("moffer")) {
+        const [, itemId, sellerId] = interaction.customId.split("_");
+        const channel = await interaction.guild.channels.create({
+            name: `🤝-offer-${interaction.user.username}`,
             type: ChannelType.GuildText,
             permissionOverwrites: [
-                { id: guild.id, deny: [PermissionsBitField.Flags.ViewChannel] },
+                { id: interaction.guild.id, deny: [PermissionsBitField.Flags.ViewChannel] },
                 { id: sellerId, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages] },
-                { id: buyer.id, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages] }
+                { id: interaction.user.id, allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.SendMessages] }
             ]
         });
-
-        const offerEmbed = new EmbedBuilder()
-            .setTitle("Neues Angebot!")
-            .setDescription(`<@${buyer.id}> bietet **${price}** für dein Item.`)
-            .setColor("Yellow");
-
         const row = new ActionRowBuilder().addComponents(
-            new ButtonBuilder().setCustomId(`accept_${channel.id}`).setLabel("Annehmen (1 Std. Chat)").setStyle(ButtonStyle.Success),
-            new ButtonBuilder().setCustomId(`decline_${channel.id}`).setLabel("Ablehnen").setStyle(ButtonStyle.Danger)
+            new ButtonBuilder().setCustomId(`acc_${channel.id}`).setLabel("Annehmen").setStyle(ButtonStyle.Success),
+            new ButtonBuilder().setCustomId(`dec_${channel.id}`).setLabel("Ablehnen").setStyle(ButtonStyle.Danger)
+        );
+        await channel.send({ content: `<@${sellerId}>, Angebot: ${interaction.fields.getTextInputValue("oprice")}`, components: [row] });
+        return interaction.reply({ content: "Kanal erstellt!", ephemeral: true });
+    }
+
+    if (interaction.isButton() && (interaction.customId.startsWith("acc") || interaction.customId.startsWith("dec"))) {
+        const [action, chanId] = interaction.customId.split("_");
+        const chan = interaction.guild.channels.cache.get(chanId);
+        if (action === "acc") {
+            await interaction.reply("Angenommen! 60 Min Chat.");
+            setTimeout(() => chan?.delete().catch(() => {}), 3600000);
+        } else {
+            await interaction.reply("Abgelehnt.");
+            setTimeout(() => chan?.delete().catch(() => {}), 5000);
+        }
+    }
+});
+
+// --- UPLOAD LOGIK ---
+client.on("messageCreate", async message => {
+    if (message.author.bot || !activeUploads.has(message.author.id)) return;
+    const data = activeUploads.get(message.author.id);
+
+    if (message.attachments.size > 0 && !data.imageUrl) {
+        data.imageUrl = message.attachments.first().url;
+        await message.delete().catch(() => {});
+    }
+
+    if (message.content.toLowerCase() === "done") {
+        await message.delete().catch(() => {});
+        const itemId = Date.now().toString();
+        const embed = new EmbedBuilder()
+            .setTitle(`📦 ${data.title}`)
+            .addFields({ name: "Preis", value: data.price, inline: true }, { name: "Seller", value: `<@${message.author.id}>`, inline: true })
+            .setColor("#ffffff");
+        if (data.imageUrl) embed.setImage(data.imageUrl);
+
+        const row1 = new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setLabel("VINTED").setStyle(ButtonStyle.Link).setURL(data.url),
+            new ButtonBuilder().setCustomId(`fav_${itemId}_${message.author.id}`).setLabel("❤️ Fav").setStyle(ButtonStyle.Secondary),
+            new ButtonBuilder().setCustomId(`offer_${itemId}_${message.author.id}`).setLabel("📩 Offer").setStyle(ButtonStyle.Success)
+        );
+        const row2 = new ActionRowBuilder().addComponents(
+            new ButtonBuilder().setCustomId(`sold_${itemId}_${message.author.id}`).setLabel("SOLD").setStyle(ButtonStyle.Danger),
+            new ButtonBuilder().setCustomId(`stats_${itemId}_${message.author.id}`).setLabel("📊 Stats").setStyle(ButtonStyle.Secondary)
         );
 
-        await channel.send({ content: `<@${sellerId}>`, embeds: [offerEmbed], components: [row] });
-        return interaction.reply({ content: `Anfrage-Channel erstellt: <#${channel.id}>`, ephemeral: true });
-    }
-
-    // 5. ACCEPT / DECLINE LOGIK
-    if (interaction.isButton() && (interaction.customId.startsWith("accept") || interaction.customId.startsWith("decline"))) {
-        const [action, channelId] = interaction.customId.split("_");
-        const channel = await guild.channels.cache.get(channelId);
-
-        if (action === "accept") {
-            await interaction.reply("Angebot angenommen! Ihr habt jetzt 1 Stunde Zeit.");
-            setTimeout(async () => {
-                await channel.delete().catch(() => {});
-            }, 60 * 60 * 1000); // 1 Stunde
-        } else {
-            await interaction.reply("Angebot abgelehnt. Channel schließt...");
-            setTimeout(() => channel.delete(), 3000);
-        }
+        const chan = await client.channels.fetch(SELL_CHANNEL_ID);
+        await chan.send({ embeds: [embed], components: [row1, row2] });
+        activeUploads.delete(message.author.id);
     }
 });
 
-// ================= MESSAGE HANDLER (BILDER & DONE) =================
-client.on("messageCreate", async message => {
-    if (message.author.bot) return;
-
-    if (activeUploads.has(message.author.id)) {
-        const data = activeUploads.get(message.author.id);
-
-        // Bilder sammeln
-        if (message.attachments.size > 0) {
-            message.attachments.forEach(a => data.images.push(a.url));
-            // Wir löschen die Foto-Nachricht sofort für Ordnung
-            await message.delete().catch(() => {});
-        }
-
-        // Abschluss
-        if (message.content.toLowerCase() === "done") {
-            await message.delete().catch(() => {}); // Löscht "done"
-            
-            const channel = await getChannel(SELL_CHANNEL_ID);
-            const itemId = Date.now().toString();
-
-            const embed = new EmbedBuilder()
-                .setTitle(`📦 ${data.title}`)
-                .setColor("White")
-                .addFields(
-                    { name: "💰 Preis", value: data.price, inline: true },
-                    { name: "👤 Verkäufer", value: `<@${message.author.id}>`, inline: true }
-                );
-
-            // Setze das ERSTE Bild als Hauptbild im Embed
-            if (data.images.length > 0) {
-                embed.setImage(data.images[0]);
-            }
-
-            const row = new ActionRowBuilder().addComponents(
-                new ButtonBuilder().setLabel("VINTED").setStyle(ButtonStyle.Link).setURL(data.url),
-                new ButtonBuilder().setCustomId(`fav_${itemId}`).setLabel("❤️ Fav").setStyle(ButtonStyle.Secondary),
-                new ButtonBuilder().setCustomId(`offer_${itemId}_${message.author.id}`).setLabel("📩 Offer").setStyle(ButtonStyle.Success)
-            );
-
-            // Verkäufer-Zeile (Nur er sieht diese Buttons sinnvoll)
-            const sellerRow = new ActionRowBuilder().addComponents(
-                new ButtonBuilder().setCustomId(`sold_${itemId}_${message.author.id}`).setLabel("MARK SOLD").setStyle(ButtonStyle.Danger)
-            );
-
-            await channel.send({ embeds: [embed], components: [row, sellerRow] });
-            activeUploads.delete(message.author.id);
-        }
-    }
-});
-
-client.login(process.env.TOKEN);
+client.login(process.env.DISCORD_TOKEN);
