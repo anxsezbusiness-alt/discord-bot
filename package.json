@@ -1,18 +1,18 @@
 {
   "name": "discord-bot",
   "version": "1.0.0",
-  "description": "",
+  "description": "Marketplace Bot",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node index.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
-    "discord.js": "^14.26.2",
-    "node-cron": "^4.2.1",
-    "sqlite3": "^6.0.1"
+    "discord.js": "^14.13.0",
+    "node-cron": "^3.0.3",
+    "sqlite3": "^5.1.7"
   }
 }
