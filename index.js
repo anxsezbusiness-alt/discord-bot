@@ -9,7 +9,8 @@ const {
     TextInputBuilder,
     TextInputStyle,
     ChannelType,
-    PermissionsBitField
+    PermissionsBitField,
+    AttachmentBuilder
 } = require('discord.js');
 const cron = require('node-cron');
 
@@ -24,7 +25,7 @@ const client = new Client({
 
 // --- KONFIGURATION ---
 const SELL_CHANNEL_ID = process.env.SELL_CHANNEL_ID || '1492261103315587354';
-const TEAM_CHANNEL_ID = process.env.TEAM_CHANNEL_ID;
+const TEAM_CHANNEL_ID = process.env.TEAM_CHANNEL_ID || null;
 const SALES_CHANNEL_ID = process.env.SALES_CHANNEL_ID || '1492593772884660224';
 
 const VIP_SOURCE_CHANNEL_ID = '1492261103315587354';
@@ -74,6 +75,33 @@ function getImageAttachment(message) {
             /\.(png|jpe?g|gif|webp|bmp)$/i.test(attachment.name || '')
         ) || message.attachments.first()
     );
+}
+
+function sanitizeFileName(fileName) {
+    const base = fileName || 'piece-image.jpg';
+    return base.replace(/[^a-zA-Z0-9._-]/g, '_');
+}
+
+async function buildImageFile(uploadData) {
+    if (!uploadData?.imageUrl) {
+        return null;
+    }
+
+    try {
+        const response = await fetch(uploadData.imageUrl);
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+
+        const arrayBuffer = await response.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
+        const safeName = sanitizeFileName(uploadData.imageName);
+
+        return new AttachmentBuilder(buffer, { name: safeName });
+    } catch (error) {
+        console.error('Bild konnte nicht heruntergeladen werden:', error.message);
+        return null;
+    }
 }
 
 function extractPrices(text) {
@@ -321,6 +349,13 @@ client.on('interactionCreate', async interaction => {
                 .setStyle(TextInputStyle.Short)
                 .setRequired(true);
 
+            const brandInput = new TextInputBuilder()
+                .setCustomId('brand')
+                .setLabel('Marke')
+                .setPlaceholder('z.B. Nike')
+                .setStyle(TextInputStyle.Short)
+                .setRequired(true);
+
             const priceInput = new TextInputBuilder()
                 .setCustomId('price')
                 .setLabel('Preis')
@@ -335,26 +370,19 @@ client.on('interactionCreate', async interaction => {
                 .setStyle(TextInputStyle.Short)
                 .setRequired(true);
 
-            const urlInput = new TextInputBuilder()
-                .setCustomId('url')
-                .setLabel('Vinted Link')
-                .setPlaceholder('https://www.vinted.de/items/...')
+            const conditionInput = new TextInputBuilder()
+                .setCustomId('condition')
+                .setLabel('Zustand')
+                .setPlaceholder('z.B. Sehr gut / Neu / Gut')
                 .setStyle(TextInputStyle.Short)
                 .setRequired(true);
 
-            const detailsInput = new TextInputBuilder()
-                .setCustomId('details')
-                .setLabel('Zustand / Farbe / Sonstiges')
-                .setPlaceholder('z.B. Sehr gut, schwarz, kaum getragen')
-                .setStyle(TextInputStyle.Paragraph)
-                .setRequired(false);
-
             modal.addComponents(
                 new ActionRowBuilder().addComponents(pieceInput),
+                new ActionRowBuilder().addComponents(brandInput),
                 new ActionRowBuilder().addComponents(priceInput),
                 new ActionRowBuilder().addComponents(sizeInput),
-                new ActionRowBuilder().addComponents(urlInput),
-                new ActionRowBuilder().addComponents(detailsInput)
+                new ActionRowBuilder().addComponents(conditionInput)
             );
 
             return interaction.showModal(modal);
@@ -379,14 +407,75 @@ client.on('interactionCreate', async interaction => {
 
     if (interaction.isModalSubmit()) {
         if (interaction.customId === 'upload_modal') {
+            const detailsModal = new ModalBuilder()
+                .setCustomId('upload_modal_page_2')
+                .setTitle('Weitere Details');
+
             activeUploads.set(interaction.user.id, {
                 title: interaction.fields.getTextInputValue('title'),
+                brand: interaction.fields.getTextInputValue('brand'),
                 price: interaction.fields.getTextInputValue('price'),
                 size: interaction.fields.getTextInputValue('size'),
-                url: interaction.fields.getTextInputValue('url'),
-                details: interaction.fields.getTextInputValue('details') || 'Keine weiteren Angaben',
-                imageUrl: null
+                condition: interaction.fields.getTextInputValue('condition'),
+                color: null,
+                category: null,
+                details: null,
+                url: null,
+                imageUrl: null,
+                imageName: null
             });
+
+            const colorInput = new TextInputBuilder()
+                .setCustomId('color')
+                .setLabel('Farbe')
+                .setPlaceholder('z.B. Schwarz')
+                .setStyle(TextInputStyle.Short)
+                .setRequired(false);
+
+            const categoryInput = new TextInputBuilder()
+                .setCustomId('category')
+                .setLabel('Kategorie')
+                .setPlaceholder('z.B. Hoodie / Schuhe / Jacke')
+                .setStyle(TextInputStyle.Short)
+                .setRequired(false);
+
+            const detailsInput = new TextInputBuilder()
+                .setCustomId('details')
+                .setLabel('Weitere Eigenschaften')
+                .setPlaceholder('z.B. Oversized, kaum getragen, kleines Logo')
+                .setStyle(TextInputStyle.Paragraph)
+                .setRequired(false);
+
+            const urlInput = new TextInputBuilder()
+                .setCustomId('url')
+                .setLabel('Vinted Link')
+                .setPlaceholder('https://www.vinted.de/items/...')
+                .setStyle(TextInputStyle.Short)
+                .setRequired(true);
+
+            detailsModal.addComponents(
+                new ActionRowBuilder().addComponents(colorInput),
+                new ActionRowBuilder().addComponents(categoryInput),
+                new ActionRowBuilder().addComponents(detailsInput),
+                new ActionRowBuilder().addComponents(urlInput)
+            );
+
+            return interaction.showModal(detailsModal);
+        }
+
+        if (interaction.customId === 'upload_modal_page_2') {
+            const existing = activeUploads.get(interaction.user.id);
+            if (!existing) {
+                return interaction.reply({
+                    content: 'Dein Upload ist abgelaufen. Bitte starte den Verkauf neu.',
+                    ephemeral: true
+                });
+            }
+
+            existing.color = interaction.fields.getTextInputValue('color') || 'Keine Angabe';
+            existing.category = interaction.fields.getTextInputValue('category') || 'Keine Angabe';
+            existing.details = interaction.fields.getTextInputValue('details') || 'Keine weiteren Angaben';
+            existing.url = interaction.fields.getTextInputValue('url');
 
             return interaction.reply({
                 content: 'Bitte lade jetzt ein Foto hoch und schreibe danach `done` in den Kanal.',
@@ -589,6 +678,7 @@ client.on('messageCreate', async message => {
 
     if (imageAttachment) {
         data.imageUrl = imageAttachment.proxyURL || imageAttachment.url;
+        data.imageName = imageAttachment.name || 'piece-image.jpg';
     }
 
     if (message.content.trim().toLowerCase() === 'done') {
@@ -608,18 +698,35 @@ client.on('messageCreate', async message => {
         }
 
         const itemId = Date.now().toString();
+        const imageFile = await buildImageFile(data);
 
         const embed = new EmbedBuilder()
-            .setTitle(`📦 ${data.title}`)
+            .setTitle(`📦 ${data.brand} ${data.title}`)
             .addFields(
                 { name: '💰 Preis', value: data.price, inline: true },
                 { name: '📏 Groesse', value: data.size, inline: true },
+                { name: '✨ Zustand', value: data.condition, inline: true },
+                { name: '🎨 Farbe', value: data.color || 'Keine Angabe', inline: true },
+                { name: '🏷️ Kategorie', value: data.category || 'Keine Angabe', inline: true },
                 { name: '👤 Verkaeufer', value: `<@${message.author.id}>`, inline: true },
-                { name: '📝 Details', value: data.details }
+                { name: '📝 Details', value: data.details || 'Keine weiteren Angaben' }
             )
             .setColor('#ffffff')
-            .setFooter({ text: `Item-ID: ${itemId}` })
-            .setImage(data.imageUrl);
+            .setFooter({ text: `Item-ID: ${itemId}` });
+
+        const sendPayload = {
+            embeds: [embed]
+        };
+
+        if (imageFile) {
+            embed.setImage(`attachment://${imageFile.name}`);
+            sendPayload.files = [imageFile];
+        } else {
+            embed.addFields({
+                name: '⚠️ Bild',
+                value: 'Bild konnte nicht uebernommen werden. Bitte lade das Piece neu hoch.'
+            });
+        }
 
         const row = new ActionRowBuilder().addComponents(
             new ButtonBuilder()
@@ -640,11 +747,10 @@ client.on('messageCreate', async message => {
                 .setStyle(ButtonStyle.Danger)
         );
 
+        sendPayload.components = [row];
+
         const chan = await client.channels.fetch(SELL_CHANNEL_ID);
-        await chan.send({
-            embeds: [embed],
-            components: [row]
-        });
+        await chan.send(sendPayload);
 
         activeUploads.delete(message.author.id);
     }
@@ -656,4 +762,5 @@ if (!process.env.TOKEN) {
 }
 
 client.login(process.env.TOKEN);
+
 
