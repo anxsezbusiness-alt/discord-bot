@@ -37,6 +37,7 @@ const VIP_ALERT_CHANNEL_ID = process.env.VIP_ALERT_CHANNEL_ID || '14922611944870
 const VIP_ROLE_ID = process.env.VIP_ROLE_ID || null;
 const VIP_ROLE_NAME = process.env.VIP_ROLE_NAME || 'VIP';
 const VIP_MAX_PRICE_EUR = Number(process.env.VIP_MAX_PRICE_EUR || 35);
+const LATEST_GOODS_CHANNEL_ID = process.env.LATEST_GOODS_CHANNEL_ID || SELL_CHANNEL_ID;
 
 const MOCKUP_CHANNEL_ID = process.env.MOCKUP_CHANNEL_ID || '1500527497345761533';
 const MOCKUP_REPORT_CHANNEL_ID = process.env.MOCKUP_REPORT_CHANNEL_ID || '1492261750110949509';
@@ -44,10 +45,52 @@ const MOCKUP_STORE_PATH = path.join(__dirname, 'mockup-submissions.json');
 const MOCKUP_PANEL_TITLE = 'SHARE YOUR MOCKUP FOR VELOO ARCHIVE';
 const MOCKUP_VOTE_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 const MOCKUP_WEEKLY_CRON = process.env.MOCKUP_WEEKLY_CRON || '0 0 * * 1';
+const OUTFIT_CHANNEL_ID = process.env.OUTFIT_CHANNEL_ID || '1500934646265810965';
+const OUTFIT_PANEL_TITLE = 'POST YOUR FIT';
+const OUTFIT_DAILY_CRON = process.env.OUTFIT_DAILY_CRON || '0 0 * * *';
 
 const activeUploads = new Map();
 const alertedVipMessages = new Set();
+const forwardedBrandMessages = new Set();
 let mockupStore = loadMockupStore();
+
+const BRAND_CHANNEL_CONFIGS = [
+    { label: 'Nike', keywords: ['nike'], channelId: '1500936023688085515' },
+    { label: 'Adidas', keywords: ['adidas'], channelId: '1500936048593735830' },
+    { label: 'Carhartt', keywords: ['carhartt'], channelId: '1500936090792759356' },
+    { label: 'Stussy', keywords: ['stussy'], channelId: '1500936134425968881' },
+    { label: 'Ralph Lauren', keywords: ['ralph lauren', 'ralph-lauren'], channelId: '1500936158853599404' },
+    { label: 'Stone Island', keywords: ['stone island', 'stone-island'], channelId: '1500936182274719984' },
+    { label: 'CP Company', keywords: ['cp company', 'cp-company'], channelId: '1500936223026450602' },
+    { label: "Arc'teryx", keywords: ['arc teryx', 'arcteryx'], channelId: '1500936244815990844' },
+    { label: 'Moncler', keywords: ['moncler'], channelId: '1500936265732718703' },
+    { label: 'The North Face', keywords: ['the north face', 'the-north-face', 'tnf'], channelId: '1500936286830067764' },
+    { label: 'Palm Angels', keywords: ['palm angels', 'palm-angels'], channelId: '1500936303854883008' },
+    { label: 'Trapstar', keywords: ['trapstar'], channelId: '1500936321902837902' },
+    { label: 'Chrome Hearts', keywords: ['chrome hearts', 'chrome-hearts'], channelId: '1500936350252142602' },
+    { label: 'Burberry', keywords: ['burberry'], channelId: '1500936376940630016' },
+    { label: 'Gucci', keywords: ['gucci'], channelId: '1500936401150283898' },
+    { label: 'Prada', keywords: ['prada'], channelId: '1500936434897387642' },
+    { label: 'Louis Vuitton', keywords: ['louis vuitton', 'louis-vuitton'], channelId: '1500936451318354067' },
+    { label: 'Dior', keywords: ['dior'], channelId: '1500936474827297120' },
+    { label: 'Off-White', keywords: ['off-white', 'off white'], channelId: '1500936495891222528' },
+    { label: 'New Balance', keywords: ['new balance', 'new-balance'], channelId: '1500936510634070016' },
+    { label: 'Chanel', keywords: ['chanel'], channelId: '1500936529978327140' },
+    { label: 'Loewe', keywords: ['loewe'], channelId: '1500936553063780462' },
+    { label: 'Fendi', keywords: ['fendi'], channelId: '1500936586588717148' },
+    { label: 'Celine', keywords: ['celine'], channelId: '1500936616209023036' },
+    { label: 'Coach', keywords: ['coach'], channelId: '1500936649356345486' },
+    { label: 'Fear of God', keywords: ['fear of god', 'fear-of-god'], channelId: '1500936674098548806' },
+    { label: 'Miu Miu', keywords: ['miu miu'], channelId: '1500936696089542686' },
+    { label: 'Moncler', keywords: ['moncler'], channelId: '1500936732890235041' },
+    { label: 'Vivienne Westwood', keywords: ['vivienne westwood', 'vivienne-westwood'], channelId: '1500936760044159287' },
+    { label: 'Supreme', keywords: ['supreme'], channelId: '1500936788632539397' }
+];
+
+const ITEM_MIRROR_CHANNEL_IDS = [...new Set([
+    SELL_CHANNEL_ID,
+    ...BRAND_CHANNEL_CONFIGS.map(config => config.channelId)
+])];
 
 const BRAND_KEYWORDS = [
     'nike',
@@ -72,14 +115,25 @@ const BRAND_KEYWORDS = [
     'louis vuitton',
     'dior',
     'off-white',
+    'off white',
     'yeezy',
-    'new balance'
+    'new balance',
+    'chanel',
+    'loewe',
+    'fendi',
+    'celine',
+    'coach',
+    'fear of god',
+    'miu miu',
+    'vivienne westwood'
 ];
 
 function createEmptyMockupStore() {
     return {
         submissions: {},
-        announcedVoteWeeks: []
+        announcedVoteWeeks: [],
+        outfitSubmissions: {},
+        announcedOutfitDates: []
     };
 }
 
@@ -94,7 +148,9 @@ function loadMockupStore() {
 
         return {
             submissions: parsed.submissions && typeof parsed.submissions === 'object' ? parsed.submissions : {},
-            announcedVoteWeeks: Array.isArray(parsed.announcedVoteWeeks) ? parsed.announcedVoteWeeks : []
+            announcedVoteWeeks: Array.isArray(parsed.announcedVoteWeeks) ? parsed.announcedVoteWeeks : [],
+            outfitSubmissions: parsed.outfitSubmissions && typeof parsed.outfitSubmissions === 'object' ? parsed.outfitSubmissions : {},
+            announcedOutfitDates: Array.isArray(parsed.announcedOutfitDates) ? parsed.announcedOutfitDates : []
         };
     } catch (error) {
         console.error('Mockup store could not be loaded:', error.message);
@@ -112,6 +168,168 @@ function saveMockupStore() {
 
 function getEmbedFooterText(embed) {
     return embed?.footer?.text || embed?.data?.footer?.text || '';
+}
+
+function normalizeSearchText(text) {
+    return (text || '')
+        .toLowerCase()
+        .replace(/['\u2019]/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+function getDateKey(date = new Date()) {
+    const { year, month, day } = getBerlinDateParts(date);
+    return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
+
+function getPreviousDateKey(date = new Date()) {
+    const currentDate = new Date(`${getDateKey(date)}T00:00:00.000Z`);
+    currentDate.setUTCDate(currentDate.getUTCDate() - 1);
+    return currentDate.toISOString().slice(0, 10);
+}
+
+function getMessageBrandSearchText(message) {
+    const embedText = (message.embeds || [])
+        .map(embed => {
+            const fieldText = (embed.fields || [])
+                .map(field => `${field.name} ${field.value}`)
+                .join(' ');
+
+            return [
+                embed.title || '',
+                embed.description || '',
+                fieldText,
+                getEmbedFooterText(embed)
+            ].join(' ');
+        })
+        .join(' ');
+
+    return normalizeSearchText(`${message.content || ''} ${embedText}`);
+}
+
+function getMatchingBrandConfigs(message) {
+    const searchableText = getMessageBrandSearchText(message);
+    if (!searchableText) {
+        return [];
+    }
+
+    return BRAND_CHANNEL_CONFIGS.filter(config =>
+        config.keywords.some(keyword => searchableText.includes(normalizeSearchText(keyword)))
+    );
+}
+
+function cloneMessageEmbedsWithResolvedImages(message) {
+    const attachmentUrlsByName = new Map(
+        [...message.attachments.values()].map(attachment => [attachment.name, attachment.url])
+    );
+
+    return message.embeds.map(embed => {
+        const clonedEmbed = EmbedBuilder.from(embed);
+        const imageUrl = embed.image?.url || embed.data?.image?.url || '';
+        const thumbnailUrl = embed.thumbnail?.url || embed.data?.thumbnail?.url || '';
+
+        if (imageUrl.startsWith('attachment://')) {
+            const attachmentName = imageUrl.replace('attachment://', '');
+            const replacementAttachment = attachmentUrlsByName.get(attachmentName) || message.attachments.first()?.url;
+            if (replacementAttachment) {
+                clonedEmbed.setImage(replacementAttachment);
+            }
+        }
+
+        if (thumbnailUrl.startsWith('attachment://')) {
+            const attachmentName = thumbnailUrl.replace('attachment://', '');
+            const replacementAttachment = attachmentUrlsByName.get(attachmentName) || message.attachments.first()?.url;
+            if (replacementAttachment) {
+                clonedEmbed.setThumbnail(replacementAttachment);
+            }
+        }
+
+        return clonedEmbed;
+    });
+}
+
+function cloneMessageComponents(message) {
+    if (!message.components?.length) {
+        return [];
+    }
+
+    return message.components.map(row => {
+        const clonedRow = new ActionRowBuilder();
+        const buttons = row.components.map(component =>
+            new ButtonBuilder(component.toJSON ? component.toJSON() : component.data || component)
+        );
+        clonedRow.addComponents(buttons);
+        return clonedRow;
+    });
+}
+
+function buildBrandForwardPayload(message) {
+    const embeds = cloneMessageEmbedsWithResolvedImages(message);
+    const components = cloneMessageComponents(message);
+
+    if (embeds.length) {
+        return { embeds, components };
+    }
+
+    const fallbackEmbed = new EmbedBuilder()
+        .setTitle('Latest Goods Alert')
+        .setDescription(message.content || 'Neuer Post in latest-goods.')
+        .setColor('#5865f2');
+
+    const firstImage = getImageAttachments(message)[0];
+    if (firstImage?.url) {
+        fallbackEmbed.setImage(firstImage.url);
+    }
+
+    return {
+        embeds: [fallbackEmbed],
+        components: components.length
+            ? components
+            : [
+                new ActionRowBuilder().addComponents(
+                    new ButtonBuilder()
+                        .setLabel('Open Original')
+                        .setStyle(ButtonStyle.Link)
+                        .setURL(message.url)
+                )
+            ]
+    };
+}
+
+async function forwardLatestGoodsToBrandChannels(message) {
+    if (message.channelId !== LATEST_GOODS_CHANNEL_ID) {
+        return;
+    }
+
+    if (!message.guild || forwardedBrandMessages.has(message.id)) {
+        return;
+    }
+
+    const matchingBrands = getMatchingBrandConfigs(message);
+    if (!matchingBrands.length) {
+        return;
+    }
+
+    const vipMention = await resolveVipMention(message.guild);
+    const payload = buildBrandForwardPayload(message);
+
+    for (const brandConfig of matchingBrands) {
+        const brandChannel = await client.channels.fetch(brandConfig.channelId).catch(() => null);
+        if (!brandChannel) {
+            continue;
+        }
+
+        await brandChannel.send({
+            content: `${vipMention} Neues ${brandConfig.label}-Piece wurde in latest-goods gepostet.`,
+            embeds: payload.embeds,
+            components: payload.components
+        }).catch(error => {
+            console.error(`Brand forward failed for ${brandConfig.label}:`, error.message);
+        });
+    }
+
+    forwardedBrandMessages.add(message.id);
 }
 
 function getImageAttachments(message) {
@@ -282,6 +500,29 @@ async function deleteFavoriteCopies(guild, itemId) {
             }
         } catch (error) {
             console.error(`Error deleting favorites in ${channel.name}:`, error.message);
+        }
+    }
+}
+
+async function deleteMirroredItemCopies(guild, itemId) {
+    for (const channelId of ITEM_MIRROR_CHANNEL_IDS) {
+        const channel = await guild.channels.fetch(channelId).catch(() => null);
+        if (!channel || channel.type !== ChannelType.GuildText) {
+            continue;
+        }
+
+        try {
+            const messages = await channel.messages.fetch({ limit: 100 });
+            const copies = messages.filter(message =>
+                message.author.id === client.user.id &&
+                getEmbedFooterText(message.embeds[0]) === `Item-ID: ${itemId}`
+            );
+
+            for (const copy of copies.values()) {
+                await copy.delete().catch(() => {});
+            }
+        } catch (error) {
+            console.error(`Error deleting mirrored items in ${channelId}:`, error.message);
         }
     }
 }
@@ -465,6 +706,39 @@ async function sendMockupPanel() {
     await mockupChannel.send({ embeds: [embed], components: [row] });
 }
 
+async function sendOutfitPanel() {
+    const outfitChannel = await client.channels.fetch(OUTFIT_CHANNEL_ID).catch(() => null);
+    if (!outfitChannel) {
+        return;
+    }
+
+    await deletePanelMessages(outfitChannel, OUTFIT_PANEL_TITLE);
+
+    const embed = new EmbedBuilder()
+        .setTitle(OUTFIT_PANEL_TITLE)
+        .setDescription('Teile deinen Fit mit der Community und hol dir den Daily Win.')
+        .addFields(
+            {
+                name: 'Was du eintragen sollst',
+                value: 'Beschreibe kurz dein Outfit, zum Beispiel Vintage Nike Zip, Baggy Denim und New Balance 9060.'
+            },
+            {
+                name: 'So funktioniert es',
+                value: 'Klicke auf den Button, fuelle das Modal aus und sende danach genau eine Nachricht mit 1 Bild und dem Text `done`.'
+            }
+        )
+        .setColor('#3498db');
+
+    const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+            .setCustomId('start_outfit_upload')
+            .setLabel('FIT POSTEN')
+            .setStyle(ButtonStyle.Primary)
+    );
+
+    await outfitChannel.send({ embeds: [embed], components: [row] });
+}
+
 async function refreshPanels() {
     console.log(`[${new Date().toLocaleTimeString('de-DE', { timeZone: TIMEZONE })}] Refreshing panels...`);
 
@@ -484,6 +758,12 @@ async function refreshPanels() {
         await sendMockupPanel();
     } catch (error) {
         console.error('Mockup channel error:', error.message);
+    }
+
+    try {
+        await sendOutfitPanel();
+    } catch (error) {
+        console.error('Outfit channel error:', error.message);
     }
 }
 
@@ -858,6 +1138,224 @@ async function handleMockupReportSubmit(interaction, entryId) {
     });
 }
 
+function getOutfitSubmission(entryId) {
+    return mockupStore.outfitSubmissions[entryId] || null;
+}
+
+function isOutfitVotingOpen(submission, referenceDate = new Date()) {
+    return getDateKey(referenceDate) === submission.contestDateKey;
+}
+
+function buildOutfitActionRow(entryId, likeCount, likeDisabled = false) {
+    return new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+            .setCustomId(`outfit_like_${entryId}`)
+            .setLabel(`LIKE ${likeCount}`)
+            .setStyle(ButtonStyle.Success)
+            .setDisabled(likeDisabled)
+    );
+}
+
+function buildOutfitEmbeds(uploadData, author, entryId, imageFile) {
+    return [
+        new EmbedBuilder()
+            .setTitle('Community Fit')
+            .setDescription('Likes zaehlen bis Mitternacht.')
+            .addFields(
+                { name: 'Outfit', value: uploadData.fitDescription, inline: false },
+                { name: 'Name', value: uploadData.submitterName, inline: true },
+                { name: 'Von', value: `<@${author.id}>`, inline: true }
+            )
+            .setColor('#3498db')
+            .setFooter({ text: `Outfit-ID: ${entryId}` })
+            .setImage(`attachment://${imageFile.name}`)
+            .setTimestamp()
+    ];
+}
+
+async function setOutfitLikeState(submission, likeDisabled) {
+    const channel = await client.channels.fetch(submission.channelId).catch(() => null);
+    if (!channel) {
+        return;
+    }
+
+    const message = await channel.messages.fetch(submission.messageId).catch(() => null);
+    if (!message) {
+        return;
+    }
+
+    await message.edit({
+        components: [buildOutfitActionRow(submission.entryId, submission.likes.length, likeDisabled)]
+    }).catch(() => {});
+}
+
+async function closeExpiredOutfitVotes() {
+    let changed = false;
+
+    for (const submission of Object.values(mockupStore.outfitSubmissions)) {
+        if (submission.voteClosed || isOutfitVotingOpen(submission)) {
+            continue;
+        }
+
+        await setOutfitLikeState(submission, true);
+        submission.voteClosed = true;
+        changed = true;
+    }
+
+    if (changed) {
+        saveMockupStore();
+    }
+}
+
+function pickDailyOutfitWinner(submissions) {
+    return [...submissions].sort((left, right) => {
+        const likeDifference = right.likes.length - left.likes.length;
+        if (likeDifference !== 0) {
+            return likeDifference;
+        }
+
+        return new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime();
+    })[0] || null;
+}
+
+function buildOutfitWinnerFallbackEmbed(submission) {
+    return new EmbedBuilder()
+        .setTitle('Daily Fit Winner')
+        .setDescription(`<@${submission.userId}> hat den Daily Fit Win mit ${submission.likes.length} Likes geholt.`)
+        .addFields(
+            { name: 'Outfit', value: submission.fitDescription, inline: false },
+            { name: 'Name', value: submission.submitterName, inline: true },
+            { name: 'Contest Day', value: submission.contestDateKey, inline: true }
+        )
+        .setColor('#f1c40f')
+        .setFooter({ text: `Outfit-ID: ${submission.entryId}` })
+        .setTimestamp();
+}
+
+async function buildOutfitWinnerEmbeds(submission) {
+    const channel = await client.channels.fetch(submission.channelId).catch(() => null);
+    if (!channel) {
+        return [buildOutfitWinnerFallbackEmbed(submission)];
+    }
+
+    const message = await channel.messages.fetch(submission.messageId).catch(() => null);
+    if (!message || !message.embeds.length) {
+        return [buildOutfitWinnerFallbackEmbed(submission)];
+    }
+
+    return message.embeds.slice(0, 2).map((embed, index) => {
+        const winnerEmbed = EmbedBuilder.from(embed).setColor('#f1c40f');
+
+        if (index === 0) {
+            winnerEmbed
+                .setTitle('Daily Fit Winner')
+                .setDescription(
+                    `<@${submission.userId}> hat den Daily Fit Win mit ${submission.likes.length} Likes geholt.\n\n` +
+                    `Outfit: ${submission.fitDescription}\nName: ${submission.submitterName}`
+                )
+                .setTimestamp();
+        }
+
+        return winnerEmbed;
+    });
+}
+
+async function announceDailyOutfitWinnerIfNeeded(referenceDate = new Date()) {
+    const targetDateKey = getPreviousDateKey(referenceDate);
+    if (mockupStore.announcedOutfitDates.includes(targetDateKey)) {
+        return;
+    }
+
+    const candidates = Object.values(mockupStore.outfitSubmissions).filter(submission =>
+        submission.contestDateKey === targetDateKey
+    );
+
+    if (!candidates.length) {
+        mockupStore.announcedOutfitDates.push(targetDateKey);
+        saveMockupStore();
+        return;
+    }
+
+    await closeExpiredOutfitVotes();
+
+    const winner = pickDailyOutfitWinner(candidates);
+    const outfitChannel = await client.channels.fetch(OUTFIT_CHANNEL_ID).catch(() => null);
+    if (!winner || !outfitChannel) {
+        return;
+    }
+
+    const winnerEmbeds = await buildOutfitWinnerEmbeds(winner);
+    const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+            .setLabel('Open Winning Fit')
+            .setStyle(ButtonStyle.Link)
+            .setURL(winner.messageUrl)
+    );
+
+    try {
+        await outfitChannel.send({
+            content: `Tagesgewinner: <@${winner.userId}> mit ${winner.likes.length} Likes.`,
+            embeds: winnerEmbeds,
+            components: [row]
+        });
+    } catch (error) {
+        console.error('Daily outfit winner announcement failed:', error.message);
+        return;
+    }
+
+    mockupStore.announcedOutfitDates.push(targetDateKey);
+    saveMockupStore();
+}
+
+async function handleOutfitLike(interaction, entryId) {
+    const submission = getOutfitSubmission(entryId);
+    if (!submission) {
+        return replyToInteraction(interaction, {
+            content: 'Dieses Outfit wurde nicht mehr gefunden.',
+            ephemeral: true
+        });
+    }
+
+    if (interaction.user.id === submission.userId) {
+        return replyToInteraction(interaction, {
+            content: 'Du kannst dein eigenes Outfit nicht liken.',
+            ephemeral: true
+        });
+    }
+
+    if (!isOutfitVotingOpen(submission)) {
+        submission.voteClosed = true;
+        saveMockupStore();
+        await interaction.message.edit({
+            components: [buildOutfitActionRow(entryId, submission.likes.length, true)]
+        }).catch(() => {});
+
+        return replyToInteraction(interaction, {
+            content: 'Das Daily Voting fuer dieses Outfit ist vorbei.',
+            ephemeral: true
+        });
+    }
+
+    if (submission.likes.includes(interaction.user.id)) {
+        return replyToInteraction(interaction, {
+            content: 'Du hast dieses Outfit bereits gelikt.',
+            ephemeral: true
+        });
+    }
+
+    submission.likes.push(interaction.user.id);
+    saveMockupStore();
+
+    await interaction.message.edit({
+        components: [buildOutfitActionRow(entryId, submission.likes.length, false)]
+    }).catch(() => {});
+
+    return replyToInteraction(interaction, {
+        content: `Like gespeichert. Aktuelle Likes: ${submission.likes.length}.`,
+        ephemeral: true
+    });
+}
+
 async function handleSellUploadMessage(message, uploadData) {
     const content = message.content.trim().toLowerCase();
     const imageAttachments = getImageAttachments(message);
@@ -1004,6 +1502,73 @@ async function handleMockupUploadMessage(message, uploadData) {
     );
 }
 
+async function handleOutfitUploadMessage(message, uploadData) {
+    const content = message.content.trim().toLowerCase();
+    const imageAttachments = getImageAttachments(message);
+
+    if (content !== 'done' || imageAttachments.length !== 1 || message.attachments.size !== 1) {
+        await sendTempMessage(
+            message.channel,
+            `<@${message.author.id}> bitte sende genau eine Nachricht mit 1 Bild und dem Text **done**.`,
+            7000
+        );
+        return;
+    }
+
+    const imageFiles = await buildImageFilesFromAttachments(imageAttachments, `outfit-${message.author.id}`);
+    await message.delete().catch(() => {});
+
+    if (imageFiles.length !== 1) {
+        await sendTempMessage(
+            message.channel,
+            `<@${message.author.id}> dein Outfit-Bild konnte nicht verarbeitet werden. Bitte versuche es nochmal mit **1 Bild + done**.`,
+            7000
+        );
+        return;
+    }
+
+    const entryId = Date.now().toString();
+    const createdAt = new Date().toISOString();
+    const contestDateKey = getDateKey(new Date());
+    const embeds = buildOutfitEmbeds(uploadData, message.author, entryId, imageFiles[0]);
+
+    const channel = await client.channels.fetch(OUTFIT_CHANNEL_ID).catch(() => null);
+    if (!channel) {
+        await sendTempMessage(message.channel, 'Der Outfit-Channel konnte nicht erreicht werden.', 7000);
+        return;
+    }
+
+    const sentMessage = await channel.send({
+        embeds,
+        components: [buildOutfitActionRow(entryId, 0, false)],
+        files: imageFiles
+    });
+
+    mockupStore.outfitSubmissions[entryId] = {
+        entryId,
+        messageId: sentMessage.id,
+        messageUrl: sentMessage.url,
+        channelId: sentMessage.channelId,
+        userId: message.author.id,
+        fitDescription: uploadData.fitDescription,
+        submitterName: uploadData.submitterName,
+        createdAt,
+        contestDateKey,
+        voteClosed: false,
+        likes: [],
+        previewImageUrl: sentMessage.attachments.first()?.url || null
+    };
+    saveMockupStore();
+
+    activeUploads.delete(message.author.id);
+
+    await sendTempMessage(
+        message.channel,
+        `<@${message.author.id}> dein Fit ist live und nimmt jetzt am Daily Voting teil.`,
+        5000
+    );
+}
+
 client.once('ready', async () => {
     console.log(` ${client.user.tag} is online!`);
 
@@ -1014,6 +1579,12 @@ client.once('ready', async () => {
     await announceWeeklyMockupWinnerIfNeeded().catch(error => {
         console.error('Weekly winner check failed on startup:', error.message);
     });
+    await closeExpiredOutfitVotes().catch(error => {
+        console.error('Outfit vote cleanup failed on startup:', error.message);
+    });
+    await announceDailyOutfitWinnerIfNeeded().catch(error => {
+        console.error('Daily outfit winner check failed on startup:', error.message);
+    });
 
     cron.schedule('*/5 * * * *', async () => {
         await refreshPanels();
@@ -1021,10 +1592,15 @@ client.once('ready', async () => {
 
     cron.schedule('0 * * * *', async () => {
         await closeExpiredMockupVotes();
+        await closeExpiredOutfitVotes();
     }, { timezone: TIMEZONE });
 
     cron.schedule(MOCKUP_WEEKLY_CRON, async () => {
         await announceWeeklyMockupWinnerIfNeeded();
+    }, { timezone: TIMEZONE });
+
+    cron.schedule(OUTFIT_DAILY_CRON, async () => {
+        await announceDailyOutfitWinnerIfNeeded();
     }, { timezone: TIMEZONE });
 });
 
@@ -1125,9 +1701,41 @@ client.on('interactionCreate', async interaction => {
                 return interaction.showModal(modal);
             }
 
+            if (interaction.customId === 'start_outfit_upload') {
+                const modal = new ModalBuilder()
+                    .setCustomId('outfit_modal')
+                    .setTitle('Post Your Fit');
+
+                const fitDescriptionInput = new TextInputBuilder()
+                    .setCustomId('fit_description')
+                    .setLabel('Was traegst du?')
+                    .setPlaceholder('z.B. Vintage Nike Zip, Baggy Denim, New Balance 9060')
+                    .setStyle(TextInputStyle.Short)
+                    .setRequired(true);
+
+                const nameInput = new TextInputBuilder()
+                    .setCustomId('submitter_name')
+                    .setLabel('Dein Name')
+                    .setPlaceholder('z.B. Hasan / veloo')
+                    .setStyle(TextInputStyle.Short)
+                    .setRequired(true);
+
+                modal.addComponents(
+                    new ActionRowBuilder().addComponents(fitDescriptionInput),
+                    new ActionRowBuilder().addComponents(nameInput)
+                );
+
+                return interaction.showModal(modal);
+            }
+
             if (interaction.customId.startsWith('mockup_like_')) {
                 const entryId = interaction.customId.replace('mockup_like_', '');
                 return handleMockupLike(interaction, entryId);
+            }
+
+            if (interaction.customId.startsWith('outfit_like_')) {
+                const entryId = interaction.customId.replace('outfit_like_', '');
+                return handleOutfitLike(interaction, entryId);
             }
 
             if (interaction.customId.startsWith('mockup_report_')) {
@@ -1163,7 +1771,7 @@ client.on('interactionCreate', async interaction => {
                 }
 
                 await deleteFavoriteCopies(interaction.guild, itemId);
-                await interaction.message.delete().catch(() => {});
+                await deleteMirroredItemCopies(interaction.guild, itemId);
                 await announceSale(sellerId).catch(error => {
                     console.error('Error posting sale message:', error.message);
                 });
@@ -1310,6 +1918,20 @@ client.on('interactionCreate', async interaction => {
                 });
             }
 
+            if (interaction.customId === 'outfit_modal') {
+                activeUploads.set(interaction.user.id, {
+                    type: 'outfit',
+                    sourceChannelId: interaction.channelId,
+                    fitDescription: interaction.fields.getTextInputValue('fit_description'),
+                    submitterName: interaction.fields.getTextInputValue('submitter_name')
+                });
+
+                return replyToInteraction(interaction, {
+                    content: 'Sende jetzt genau eine Nachricht mit 1 Bild und dem Text `done`. Diese Nachricht wird danach automatisch geloescht.',
+                    ephemeral: true
+                });
+            }
+
             if (interaction.customId.startsWith('mockup_report_modal_')) {
                 const entryId = interaction.customId.replace('mockup_report_modal_', '');
                 return handleMockupReportSubmit(interaction, entryId);
@@ -1380,6 +2002,9 @@ client.on('messageCreate', async message => {
     await handleVipDeal(message).catch(error => {
         console.error('VIP detection failed:', error.message);
     });
+    await forwardLatestGoodsToBrandChannels(message).catch(error => {
+        console.error('Brand forward failed:', error.message);
+    });
 
     if (message.author.bot) {
         return;
@@ -1404,6 +2029,13 @@ client.on('messageCreate', async message => {
     if (uploadData.type === 'mockup') {
         await handleMockupUploadMessage(message, uploadData).catch(error => {
             console.error('Mockup upload failed:', error.message);
+        });
+        return;
+    }
+
+    if (uploadData.type === 'outfit') {
+        await handleOutfitUploadMessage(message, uploadData).catch(error => {
+            console.error('Outfit upload failed:', error.message);
         });
     }
 });
