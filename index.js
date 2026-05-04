@@ -19,6 +19,7 @@ const path = require('node:path');
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
+        GatewayIntentBits.GuildMembers,
         GatewayIntentBits.GuildMessages,
         GatewayIntentBits.MessageContent,
         GatewayIntentBits.DirectMessages
@@ -31,6 +32,9 @@ const TIMEZONE = process.env.BOT_TIMEZONE || 'Europe/Berlin';
 const SELL_CHANNEL_ID = process.env.SELL_CHANNEL_ID || '1492261103315587354';
 const TEAM_CHANNEL_ID = process.env.TEAM_CHANNEL_ID || null;
 const SALES_CHANNEL_ID = process.env.SALES_CHANNEL_ID || '1492593772884660224';
+const RULES_CHANNEL_ID = process.env.RULES_CHANNEL_ID || null;
+const TUTORIAL_CHANNEL_ID = process.env.TUTORIAL_CHANNEL_ID || null;
+const INFO_CHANNEL_ID = process.env.INFO_CHANNEL_ID || null;
 
 const VIP_SOURCE_CHANNEL_ID = process.env.VIP_SOURCE_CHANNEL_ID || '1492261103315587354';
 const VIP_ALERT_CHANNEL_ID = process.env.VIP_ALERT_CHANNEL_ID || '1492261194487037952';
@@ -48,6 +52,10 @@ const MOCKUP_WEEKLY_CRON = process.env.MOCKUP_WEEKLY_CRON || '0 0 * * 1';
 const OUTFIT_CHANNEL_ID = process.env.OUTFIT_CHANNEL_ID || '1500934646265810965';
 const OUTFIT_PANEL_TITLE = 'POST YOUR FIT';
 const OUTFIT_DAILY_CRON = process.env.OUTFIT_DAILY_CRON || '0 0 * * *';
+const MONTHLY_ACTIVITY_CHANNEL_ID = process.env.MONTHLY_ACTIVITY_CHANNEL_ID || '1500944487357223092';
+const MONTHLY_ACTIVITY_CRON = process.env.MONTHLY_ACTIVITY_CRON || '0 0 1 * *';
+
+// TODO: Add restock / repost reminder flow.
 
 const activeUploads = new Map();
 const alertedVipMessages = new Set();
@@ -128,12 +136,45 @@ const BRAND_KEYWORDS = [
     'vivienne westwood'
 ];
 
+const ACTIVITY_POINTS = {
+    join_server: 1,
+    message_post: 1,
+    teamup_post: 2,
+    sell_upload: 4,
+    sale_completed: 5,
+    favorite_saved: 1,
+    offer_sent: 2,
+    mockup_upload: 4,
+    mockup_like: 1,
+    mockup_report: 1,
+    outfit_upload: 4,
+    outfit_like: 1
+};
+
+const ACTIVITY_LABELS = {
+    join_server: 'Joins',
+    message_post: 'Nachrichten',
+    teamup_post: 'Team-Ups',
+    sell_upload: 'Listings',
+    sale_completed: 'Sales',
+    favorite_saved: 'Favoriten',
+    offer_sent: 'Offers',
+    mockup_upload: 'Mockups',
+    mockup_like: 'Mockup-Likes',
+    mockup_report: 'Reports',
+    outfit_upload: 'Fits',
+    outfit_like: 'Fit-Likes'
+};
+
 function createEmptyMockupStore() {
     return {
         submissions: {},
         announcedVoteWeeks: [],
         outfitSubmissions: {},
-        announcedOutfitDates: []
+        announcedOutfitDates: [],
+        activityByMonth: {},
+        announcedActivityMonths: [],
+        monthlyActivityWinners: {}
     };
 }
 
@@ -150,7 +191,13 @@ function loadMockupStore() {
             submissions: parsed.submissions && typeof parsed.submissions === 'object' ? parsed.submissions : {},
             announcedVoteWeeks: Array.isArray(parsed.announcedVoteWeeks) ? parsed.announcedVoteWeeks : [],
             outfitSubmissions: parsed.outfitSubmissions && typeof parsed.outfitSubmissions === 'object' ? parsed.outfitSubmissions : {},
-            announcedOutfitDates: Array.isArray(parsed.announcedOutfitDates) ? parsed.announcedOutfitDates : []
+            announcedOutfitDates: Array.isArray(parsed.announcedOutfitDates) ? parsed.announcedOutfitDates : [],
+            activityByMonth: parsed.activityByMonth && typeof parsed.activityByMonth === 'object' ? parsed.activityByMonth : {},
+            announcedActivityMonths: Array.isArray(parsed.announcedActivityMonths) ? parsed.announcedActivityMonths : [],
+            monthlyActivityWinners:
+                parsed.monthlyActivityWinners && typeof parsed.monthlyActivityWinners === 'object'
+                    ? parsed.monthlyActivityWinners
+                    : {}
         };
     } catch (error) {
         console.error('Mockup store could not be loaded:', error.message);
@@ -176,6 +223,141 @@ function normalizeSearchText(text) {
         .replace(/['\u2019]/g, '')
         .replace(/\s+/g, ' ')
         .trim();
+}
+
+function getMonthKey(date = new Date()) {
+    const { year, month } = getBerlinDateParts(date);
+    return `${year}-${String(month).padStart(2, '0')}`;
+}
+
+function getPreviousMonthKey(date = new Date()) {
+    let { year, month } = getBerlinDateParts(date);
+    month -= 1;
+
+    if (month === 0) {
+        month = 12;
+        year -= 1;
+    }
+
+    return `${year}-${String(month).padStart(2, '0')}`;
+}
+
+function formatMonthLabel(monthKey) {
+    return new Intl.DateTimeFormat('de-DE', {
+        timeZone: TIMEZONE,
+        month: 'long',
+        year: 'numeric'
+    }).format(new Date(`${monthKey}-01T00:00:00.000Z`));
+}
+
+function getActivityDisplayName(activityEntry, userId) {
+    return activityEntry?.displayName || `<@${userId}>`;
+}
+
+function summarizeActivityBreakdown(breakdown = {}) {
+    const orderedEntries = Object.entries(breakdown)
+        .sort((left, right) => right[1] - left[1])
+        .slice(0, 6);
+
+    if (!orderedEntries.length) {
+        return 'Keine Details vorhanden.';
+    }
+
+    return orderedEntries
+        .map(([activityKey, count]) => `${ACTIVITY_LABELS[activityKey] || activityKey}: ${count}`)
+        .join('\n');
+}
+
+function recordUserActivity(userId, activityKey, options = {}) {
+    if (!userId || !activityKey) {
+        return;
+    }
+
+    const now = new Date();
+    const monthKey = getMonthKey(now);
+    const monthBucket = mockupStore.activityByMonth[monthKey] || {};
+    const existingEntry = monthBucket[userId] || {
+        userId,
+        displayName: options.displayName || null,
+        points: 0,
+        totalActions: 0,
+        breakdown: {},
+        lastActivityAt: null,
+        cooldowns: {}
+    };
+
+    const increment = Math.max(1, Number(options.increment || 1));
+    const pointsPerAction = ACTIVITY_POINTS[activityKey] || 1;
+    const cooldownMs = Math.max(0, Number(options.cooldownMs || 0));
+
+    existingEntry.displayName = options.displayName || existingEntry.displayName || userId;
+    existingEntry.cooldowns = existingEntry.cooldowns && typeof existingEntry.cooldowns === 'object'
+        ? existingEntry.cooldowns
+        : {};
+
+    if (cooldownMs > 0) {
+        const lastCooldownAt = new Date(existingEntry.cooldowns[activityKey] || 0).getTime();
+        if (Number.isFinite(lastCooldownAt) && now.getTime() - lastCooldownAt < cooldownMs) {
+            return;
+        }
+
+        existingEntry.cooldowns[activityKey] = now.toISOString();
+    }
+
+    existingEntry.points += pointsPerAction * increment;
+    existingEntry.totalActions += increment;
+    existingEntry.breakdown[activityKey] = (existingEntry.breakdown[activityKey] || 0) + increment;
+    existingEntry.lastActivityAt = now.toISOString();
+
+    monthBucket[userId] = existingEntry;
+    mockupStore.activityByMonth[monthKey] = monthBucket;
+    saveMockupStore();
+}
+
+function pickMostActiveMember(monthBucket) {
+    return Object.entries(monthBucket).sort((left, right) => {
+        const [, leftEntry] = left;
+        const [, rightEntry] = right;
+
+        if (rightEntry.points !== leftEntry.points) {
+            return rightEntry.points - leftEntry.points;
+        }
+
+        if (rightEntry.totalActions !== leftEntry.totalActions) {
+            return rightEntry.totalActions - leftEntry.totalActions;
+        }
+
+        return new Date(rightEntry.lastActivityAt || 0).getTime() - new Date(leftEntry.lastActivityAt || 0).getTime();
+    });
+}
+
+function buildMonthlyActivityEmbeds(monthKey, sortedEntries) {
+    const [winnerUserId, winnerEntry] = sortedEntries[0];
+    const leaderboard = sortedEntries
+        .slice(0, 3)
+        .map(([userId, entry], index) =>
+            `${index + 1}. <@${userId}> - ${entry.points} Punkte (${entry.totalActions} Aktionen)`
+        )
+        .join('\n');
+
+    const summaryEmbed = new EmbedBuilder()
+        .setTitle('Most Active Member')
+        .setDescription(
+            `<@${winnerUserId}> war im ${formatMonthLabel(monthKey)} die aktivste Person auf dem Server.\n` +
+            'Gewertet werden Uploads, Likes, Sales, Team-Ups und regelmaessige Chat-Aktivitaet.'
+        )
+        .addFields(
+            { name: 'Punkte', value: String(winnerEntry.points), inline: true },
+            { name: 'Aktionen', value: String(winnerEntry.totalActions), inline: true },
+            { name: 'Name', value: getActivityDisplayName(winnerEntry, winnerUserId), inline: true },
+            { name: 'Top Aktivitaeten', value: summarizeActivityBreakdown(winnerEntry.breakdown), inline: false },
+            { name: 'Top 3', value: leaderboard, inline: false }
+        )
+        .setColor('#f1c40f')
+        .setFooter({ text: `Aktivster Monat: ${monthKey}` })
+        .setTimestamp();
+
+    return [summaryEmbed];
 }
 
 function getDateKey(date = new Date()) {
@@ -432,6 +614,84 @@ async function resolveVipMention(guild) {
     return `@${VIP_ROLE_NAME}`;
 }
 
+function memberHasVipRole(member) {
+    if (!member?.roles?.cache) {
+        return false;
+    }
+
+    if (VIP_ROLE_ID && member.roles.cache.has(VIP_ROLE_ID)) {
+        return true;
+    }
+
+    return member.roles.cache.some(role => role.name === VIP_ROLE_NAME);
+}
+
+function getChannelMention(channelId, fallbackText) {
+    return channelId ? `<#${channelId}>` : fallbackText;
+}
+
+function getMemberDisplayName(member, user) {
+    return member?.displayName || user?.globalName || user?.username || 'Member';
+}
+
+function buildVipHighlightField() {
+    return {
+        name: 'VIP Perk',
+        value: 'Dieser Post wurde mit VIP hervorgehoben.',
+        inline: false
+    };
+}
+
+function buildWelcomeEmbeds(member) {
+    const displayName = getMemberDisplayName(member, member.user);
+
+    const welcomeEmbed = new EmbedBuilder()
+        .setTitle(`Willkommen bei ${member.guild.name}`)
+        .setDescription(
+            `Hey ${displayName}, schoen dass du da bist.\n` +
+            `Hier ist dein kurzer Start, damit du direkt alles findest.`
+        )
+        .addFields(
+            {
+                name: 'Regeln',
+                value: `Bitte lies zuerst ${getChannelMention(RULES_CHANNEL_ID, 'den Regeln-Channel')}.`
+            },
+            {
+                name: 'Tutorials',
+                value: `Alle How-to Infos findest du in ${getChannelMention(TUTORIAL_CHANNEL_ID, 'dem Tutorial-Channel')}.`
+            },
+            {
+                name: 'Wichtige Channels',
+                value:
+                    `${getChannelMention(LATEST_GOODS_CHANNEL_ID, '`latest-goods`')} fuer neue Pieces\n` +
+                    `${getChannelMention(SELL_CHANNEL_ID, '`sell-your-piece`')} fuer Sales\n` +
+                    `${getChannelMention(MOCKUP_CHANNEL_ID, '`mockups`')} fuer Archive-Ideen\n` +
+                    `${getChannelMention(OUTFIT_CHANNEL_ID, '`fits`')} fuer Outfit-Posts`
+            },
+            {
+                name: 'Extra',
+                value:
+                    `${getChannelMention(INFO_CHANNEL_ID, 'Weitere Infos im Info-Bereich')}.\n` +
+                    `VIP lohnt sich, weil VIP-Posts im Feed extra hervorgehoben werden.`
+            }
+        )
+        .setColor('#5865f2')
+        .setThumbnail(member.user.displayAvatarURL())
+        .setTimestamp();
+
+    const tutorialEmbed = new EmbedBuilder()
+        .setTitle('So startest du')
+        .setDescription(
+            '1. Lies die Regeln.\n' +
+            '2. Schau dir die Tutorials an.\n' +
+            '3. Poste dein Piece, dein Mockup oder deinen Fit.\n' +
+            '4. Like, vote und werde Teil der Community.'
+        )
+        .setColor('#3498db');
+
+    return [welcomeEmbed, tutorialEmbed];
+}
+
 async function handleVipDeal(message) {
     if (message.channelId !== VIP_SOURCE_CHANNEL_ID) {
         return;
@@ -633,7 +893,7 @@ async function sendSellPanel() {
 
     const embed = new EmbedBuilder()
         .setTitle('SELL YOUR PIECE')
-        .setDescription('Click the button below to list your item for sale.')
+        .setDescription('Click the button below to list your item for sale.\nVIP members get premium highlighted listings.')
         .setColor('#000000');
 
     const row = new ActionRowBuilder().addComponents(
@@ -834,7 +1094,7 @@ function buildMockupActionRow(entryId, likeCount, likeDisabled = false, reportDi
     );
 }
 
-function buildMockupEmbeds(uploadData, author, entryId, imageFiles, voteEndsAt) {
+function buildMockupEmbeds(uploadData, author, entryId, imageFiles, voteEndsAt, isVipCreator = false, creatorName = author.username) {
     const embeds = [];
 
     const mainEmbed = new EmbedBuilder()
@@ -846,9 +1106,18 @@ function buildMockupEmbeds(uploadData, author, entryId, imageFiles, voteEndsAt) 
             { name: 'Von', value: `<@${author.id}>`, inline: true },
             { name: 'Voting endet', value: formatDateTime(voteEndsAt), inline: false }
         )
-        .setColor('#e67e22')
+        .setColor(isVipCreator ? '#f1c40f' : '#e67e22')
         .setFooter({ text: `Mockup-ID: ${entryId}` })
         .setTimestamp();
+
+    if (isVipCreator) {
+        mainEmbed
+            .setAuthor({
+                name: `VIP Creator • ${creatorName}`,
+                iconURL: author.displayAvatarURL()
+            })
+            .addFields(buildVipHighlightField());
+    }
 
     if (imageFiles[0]) {
         mainEmbed.setImage(`attachment://${imageFiles[0].name}`);
@@ -859,7 +1128,7 @@ function buildMockupEmbeds(uploadData, author, entryId, imageFiles, voteEndsAt) 
     for (let index = 1; index < imageFiles.length; index += 1) {
         embeds.push(
             new EmbedBuilder()
-                .setColor('#f4b183')
+                .setColor(isVipCreator ? '#f8e08e' : '#f4b183')
                 .setImage(`attachment://${imageFiles[index].name}`)
                 .setFooter({ text: `Weitere Mockup-Ansicht ${index + 1}` })
         );
@@ -915,7 +1184,7 @@ function pickWeeklyWinner(submissions) {
 
 function buildWinnerFallbackEmbed(submission) {
     return new EmbedBuilder()
-        .setTitle('Wochensieger Mockup')
+        .setTitle(submission.isVipCreator ? 'VIP Wochensieger Mockup' : 'Wochensieger Mockup')
         .setDescription(`<@${submission.userId}> gewinnt diese Woche mit ${submission.likes.length} Likes.`)
         .addFields(
             { name: 'Art', value: submission.garmentType, inline: true },
@@ -1051,6 +1320,9 @@ async function handleMockupLike(interaction, entryId) {
 
     submission.likes.push(interaction.user.id);
     saveMockupStore();
+    recordUserActivity(interaction.user.id, 'mockup_like', {
+        displayName: getMemberDisplayName(interaction.member, interaction.user)
+    });
 
     await interaction.message.edit({
         components: [buildMockupActionRow(entryId, submission.likes.length, false, false)]
@@ -1092,6 +1364,9 @@ async function handleMockupReportSubmit(interaction, entryId) {
         createdAt: new Date().toISOString()
     });
     saveMockupStore();
+    recordUserActivity(interaction.user.id, 'mockup_report', {
+        displayName: getMemberDisplayName(interaction.member, interaction.user)
+    });
 
     const reportChannel = await client.channels.fetch(MOCKUP_REPORT_CHANNEL_ID).catch(() => null);
     if (!reportChannel) {
@@ -1156,21 +1431,30 @@ function buildOutfitActionRow(entryId, likeCount, likeDisabled = false) {
     );
 }
 
-function buildOutfitEmbeds(uploadData, author, entryId, imageFile) {
-    return [
-        new EmbedBuilder()
-            .setTitle('Community Fit')
-            .setDescription('Likes zaehlen bis Mitternacht.')
-            .addFields(
-                { name: 'Outfit', value: uploadData.fitDescription, inline: false },
-                { name: 'Name', value: uploadData.submitterName, inline: true },
-                { name: 'Von', value: `<@${author.id}>`, inline: true }
-            )
-            .setColor('#3498db')
-            .setFooter({ text: `Outfit-ID: ${entryId}` })
-            .setImage(`attachment://${imageFile.name}`)
-            .setTimestamp()
-    ];
+function buildOutfitEmbeds(uploadData, author, entryId, imageFile, isVipCreator = false, creatorName = author.username) {
+    const mainEmbed = new EmbedBuilder()
+        .setTitle(isVipCreator ? 'VIP Community Fit' : 'Community Fit')
+        .setDescription('Likes zaehlen bis Mitternacht.')
+        .addFields(
+            { name: 'Outfit', value: uploadData.fitDescription, inline: false },
+            { name: 'Name', value: uploadData.submitterName, inline: true },
+            { name: 'Von', value: `<@${author.id}>`, inline: true }
+        )
+        .setColor(isVipCreator ? '#f1c40f' : '#3498db')
+        .setFooter({ text: `Outfit-ID: ${entryId}` })
+        .setImage(`attachment://${imageFile.name}`)
+        .setTimestamp();
+
+    if (isVipCreator) {
+        mainEmbed
+            .setAuthor({
+                name: `VIP Fit • ${creatorName}`,
+                iconURL: author.displayAvatarURL()
+            })
+            .addFields(buildVipHighlightField());
+    }
+
+    return [mainEmbed];
 }
 
 async function setOutfitLikeState(submission, likeDisabled) {
@@ -1220,7 +1504,7 @@ function pickDailyOutfitWinner(submissions) {
 
 function buildOutfitWinnerFallbackEmbed(submission) {
     return new EmbedBuilder()
-        .setTitle('Daily Fit Winner')
+        .setTitle(submission.isVipCreator ? 'VIP Daily Fit Winner' : 'Daily Fit Winner')
         .setDescription(`<@${submission.userId}> hat den Daily Fit Win mit ${submission.likes.length} Likes geholt.`)
         .addFields(
             { name: 'Outfit', value: submission.fitDescription, inline: false },
@@ -1307,6 +1591,65 @@ async function announceDailyOutfitWinnerIfNeeded(referenceDate = new Date()) {
     saveMockupStore();
 }
 
+async function announceMostActiveMemberIfNeeded(referenceDate = new Date()) {
+    const targetMonthKey = getPreviousMonthKey(referenceDate);
+    if (mockupStore.announcedActivityMonths.includes(targetMonthKey)) {
+        return;
+    }
+
+    const monthBucket = mockupStore.activityByMonth[targetMonthKey];
+    if (!monthBucket || !Object.keys(monthBucket).length) {
+        mockupStore.announcedActivityMonths.push(targetMonthKey);
+        saveMockupStore();
+        return;
+    }
+
+    const sortedEntries = pickMostActiveMember(monthBucket);
+    if (!sortedEntries.length) {
+        mockupStore.announcedActivityMonths.push(targetMonthKey);
+        saveMockupStore();
+        return;
+    }
+
+    const activityChannel = await client.channels.fetch(MONTHLY_ACTIVITY_CHANNEL_ID).catch(() => null);
+    if (!activityChannel) {
+        return;
+    }
+
+    const [winnerUserId, winnerEntry] = sortedEntries[0];
+    const embeds = buildMonthlyActivityEmbeds(targetMonthKey, sortedEntries);
+
+    try {
+        await activityChannel.send({
+            content:
+                `Monatsrueckblick fuer ${formatMonthLabel(targetMonthKey)}: ` +
+                `<@${winnerUserId}> war die aktivste Person mit ${winnerEntry.points} Punkten.`,
+            embeds
+        });
+    } catch (error) {
+        console.error('Monthly activity announcement failed:', error.message);
+        return;
+    }
+
+    mockupStore.monthlyActivityWinners[targetMonthKey] = {
+        userId: winnerUserId,
+        displayName: getActivityDisplayName(winnerEntry, winnerUserId),
+        points: winnerEntry.points,
+        totalActions: winnerEntry.totalActions,
+        breakdown: winnerEntry.breakdown,
+        announcedAt: new Date().toISOString(),
+        leaderboard: sortedEntries.slice(0, 3).map(([userId, entry], index) => ({
+            rank: index + 1,
+            userId,
+            displayName: getActivityDisplayName(entry, userId),
+            points: entry.points,
+            totalActions: entry.totalActions
+        }))
+    };
+    mockupStore.announcedActivityMonths.push(targetMonthKey);
+    saveMockupStore();
+}
+
 async function handleOutfitLike(interaction, entryId) {
     const submission = getOutfitSubmission(entryId);
     if (!submission) {
@@ -1345,6 +1688,9 @@ async function handleOutfitLike(interaction, entryId) {
 
     submission.likes.push(interaction.user.id);
     saveMockupStore();
+    recordUserActivity(interaction.user.id, 'outfit_like', {
+        displayName: getMemberDisplayName(interaction.member, interaction.user)
+    });
 
     await interaction.message.edit({
         components: [buildOutfitActionRow(entryId, submission.likes.length, false)]
@@ -1382,17 +1728,29 @@ async function handleSellUploadMessage(message, uploadData) {
     }
 
     const itemId = Date.now().toString();
+    const isVipSeller = memberHasVipRole(message.member);
+    const creatorName = getMemberDisplayName(message.member, message.author);
 
     const embed = new EmbedBuilder()
-        .setTitle(` ${uploadData.brand} ${uploadData.title}`.trim())
+        .setTitle(`${isVipSeller ? 'VIP ' : ''}${uploadData.brand} ${uploadData.title}`.trim())
         .addFields(
             { name: 'Price', value: uploadData.price, inline: true },
             { name: 'Size', value: uploadData.size, inline: true },
             { name: 'Seller', value: `<@${message.author.id}>`, inline: true }
         )
-        .setColor('#ffffff')
+        .setColor(isVipSeller ? '#f1c40f' : '#ffffff')
         .setFooter({ text: `Item-ID: ${itemId}` })
         .setImage(`attachment://${imageFiles[0].name}`);
+
+    if (isVipSeller) {
+        embed
+            .setAuthor({
+                name: `VIP Seller • ${creatorName}`,
+                iconURL: message.author.displayAvatarURL()
+            })
+            .setDescription('Prioritaets-Listing aus dem VIP-Bereich.')
+            .addFields(buildVipHighlightField());
+    }
 
     const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
@@ -1420,9 +1778,14 @@ async function handleSellUploadMessage(message, uploadData) {
     }
 
     await channel.send({
+        content: isVipSeller ? '👑 VIP LISTING • extra hervorgehoben' : undefined,
         embeds: [embed],
         components: [row],
         files: imageFiles
+    });
+
+    recordUserActivity(message.author.id, 'sell_upload', {
+        displayName: creatorName
     });
 
     activeUploads.delete(message.author.id);
@@ -1461,7 +1824,9 @@ async function handleMockupUploadMessage(message, uploadData) {
     const entryId = Date.now().toString();
     const createdAt = new Date().toISOString();
     const voteEndsAt = new Date(Date.now() + MOCKUP_VOTE_WINDOW_MS).toISOString();
-    const embeds = buildMockupEmbeds(uploadData, message.author, entryId, imageFiles, voteEndsAt);
+    const isVipCreator = memberHasVipRole(message.member);
+    const creatorName = getMemberDisplayName(message.member, message.author);
+    const embeds = buildMockupEmbeds(uploadData, message.author, entryId, imageFiles, voteEndsAt, isVipCreator, creatorName);
 
     const channel = await client.channels.fetch(MOCKUP_CHANNEL_ID).catch(() => null);
     if (!channel) {
@@ -1483,6 +1848,7 @@ async function handleMockupUploadMessage(message, uploadData) {
         userId: message.author.id,
         garmentType: uploadData.garmentType,
         submitterName: uploadData.submitterName,
+        isVipCreator,
         createdAt,
         voteEndsAt,
         voteWeekKey: getWeekKey(new Date(voteEndsAt)),
@@ -1492,6 +1858,9 @@ async function handleMockupUploadMessage(message, uploadData) {
         previewImageUrl: sentMessage.attachments.first()?.url || null
     };
     saveMockupStore();
+    recordUserActivity(message.author.id, 'mockup_upload', {
+        displayName: creatorName
+    });
 
     activeUploads.delete(message.author.id);
 
@@ -1530,7 +1899,9 @@ async function handleOutfitUploadMessage(message, uploadData) {
     const entryId = Date.now().toString();
     const createdAt = new Date().toISOString();
     const contestDateKey = getDateKey(new Date());
-    const embeds = buildOutfitEmbeds(uploadData, message.author, entryId, imageFiles[0]);
+    const isVipCreator = memberHasVipRole(message.member);
+    const creatorName = getMemberDisplayName(message.member, message.author);
+    const embeds = buildOutfitEmbeds(uploadData, message.author, entryId, imageFiles[0], isVipCreator, creatorName);
 
     const channel = await client.channels.fetch(OUTFIT_CHANNEL_ID).catch(() => null);
     if (!channel) {
@@ -1552,6 +1923,7 @@ async function handleOutfitUploadMessage(message, uploadData) {
         userId: message.author.id,
         fitDescription: uploadData.fitDescription,
         submitterName: uploadData.submitterName,
+        isVipCreator,
         createdAt,
         contestDateKey,
         voteClosed: false,
@@ -1559,6 +1931,9 @@ async function handleOutfitUploadMessage(message, uploadData) {
         previewImageUrl: sentMessage.attachments.first()?.url || null
     };
     saveMockupStore();
+    recordUserActivity(message.author.id, 'outfit_upload', {
+        displayName: creatorName
+    });
 
     activeUploads.delete(message.author.id);
 
@@ -1568,6 +1943,25 @@ async function handleOutfitUploadMessage(message, uploadData) {
         5000
     );
 }
+
+client.on('guildMemberAdd', async member => {
+    if (member.user.bot) {
+        return;
+    }
+
+    recordUserActivity(member.id, 'join_server', {
+        displayName: getMemberDisplayName(member, member.user)
+    });
+
+    const welcomeEmbeds = buildWelcomeEmbeds(member);
+
+    await member.send({
+        content: `Willkommen auf ${member.guild.name}. Hier ist dein Start-Guide.`,
+        embeds: welcomeEmbeds
+    }).catch(error => {
+        console.error(`Welcome DM could not be sent to ${member.user.tag}:`, error.message);
+    });
+});
 
 client.once('ready', async () => {
     console.log(` ${client.user.tag} is online!`);
@@ -1585,6 +1979,9 @@ client.once('ready', async () => {
     await announceDailyOutfitWinnerIfNeeded().catch(error => {
         console.error('Daily outfit winner check failed on startup:', error.message);
     });
+    await announceMostActiveMemberIfNeeded().catch(error => {
+        console.error('Monthly activity winner check failed on startup:', error.message);
+    });
 
     cron.schedule('*/5 * * * *', async () => {
         await refreshPanels();
@@ -1601,6 +1998,10 @@ client.once('ready', async () => {
 
     cron.schedule(OUTFIT_DAILY_CRON, async () => {
         await announceDailyOutfitWinnerIfNeeded();
+    }, { timezone: TIMEZONE });
+
+    cron.schedule(MONTHLY_ACTIVITY_CRON, async () => {
+        await announceMostActiveMemberIfNeeded();
     }, { timezone: TIMEZONE });
 });
 
@@ -1775,6 +2176,9 @@ client.on('interactionCreate', async interaction => {
                 await announceSale(sellerId).catch(error => {
                     console.error('Error posting sale message:', error.message);
                 });
+                recordUserActivity(sellerId, 'sale_completed', {
+                    displayName: getMemberDisplayName(interaction.member, interaction.user)
+                });
 
                 return replyToInteraction(interaction, {
                     content: 'Item deleted, favorites cleaned up, and sale counted.',
@@ -1833,6 +2237,9 @@ client.on('interactionCreate', async interaction => {
                     content: 'You saved this piece:',
                     embeds: [originalEmbed],
                     components: [favoriteRow]
+                });
+                recordUserActivity(interaction.user.id, 'favorite_saved', {
+                    displayName: getMemberDisplayName(interaction.member, interaction.user)
                 });
 
                 return replyToInteraction(interaction, {
@@ -1898,6 +2305,9 @@ client.on('interactionCreate', async interaction => {
                     .setTimestamp();
 
                 await interaction.channel.send({ embeds: [embed] });
+                recordUserActivity(interaction.user.id, 'teamup_post', {
+                    displayName: getMemberDisplayName(interaction.member, interaction.user)
+                });
                 return replyToInteraction(interaction, {
                     content: 'Your request has been posted.',
                     ephemeral: true
@@ -1976,6 +2386,9 @@ client.on('interactionCreate', async interaction => {
 
                 try {
                     await seller.send({ embeds: [offerEmbed] });
+                    recordUserActivity(interaction.user.id, 'offer_sent', {
+                        displayName: getMemberDisplayName(interaction.member, interaction.user)
+                    });
                     return replyToInteraction(interaction, {
                         content: 'Your offer has been sent to the seller.',
                         ephemeral: true
@@ -2011,6 +2424,17 @@ client.on('messageCreate', async message => {
     }
 
     const uploadData = activeUploads.get(message.author.id);
+    const isUploadFlowMessage =
+        Boolean(uploadData) &&
+        (!uploadData.sourceChannelId || uploadData.sourceChannelId === message.channelId);
+
+    if (message.guild && !isUploadFlowMessage) {
+        recordUserActivity(message.author.id, 'message_post', {
+            displayName: getMemberDisplayName(message.member, message.author),
+            cooldownMs: 10 * 60 * 1000
+        });
+    }
+
     if (!uploadData) {
         return;
     }
