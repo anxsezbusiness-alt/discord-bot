@@ -54,12 +54,23 @@ const OUTFIT_PANEL_TITLE = 'POST YOUR FIT';
 const OUTFIT_DAILY_CRON = process.env.OUTFIT_DAILY_CRON || '0 0 * * *';
 const MONTHLY_ACTIVITY_CHANNEL_ID = process.env.MONTHLY_ACTIVITY_CHANNEL_ID || '1500944487357223092';
 const MONTHLY_ACTIVITY_CRON = process.env.MONTHLY_ACTIVITY_CRON || '0 0 1 * *';
+const COMMUNITY_COOKED_CHANNEL_ID = process.env.COMMUNITY_COOKED_CHANNEL_ID || '1501207095092183201';
+const COMMUNITY_COOKED_CRON = process.env.COMMUNITY_COOKED_CRON || '0 0 1 * *';
+const MAIN_CHANNEL_ID = process.env.MAIN_CHANNEL_ID || '1492261145078272230';
+const MODERATOR_ROLE_ID = process.env.MODERATOR_ROLE_ID || null;
+const MODERATOR_ROLE_NAME = process.env.MODERATOR_ROLE_NAME || '𝘔𝘰𝘥𝘦𝘳𝘢𝘵𝘰𝘳';
+const TIKTOK_URL = process.env.TIKTOK_URL || 'https://www.tiktok.com/@velooarchive';
+const INSTAGRAM_HANDLE = process.env.INSTAGRAM_HANDLE || '@velooarchive';
+const INSTAGRAM_URL = process.env.INSTAGRAM_URL || 'https://www.instagram.com/velooarchive/';
+const BUSINESS_EMAIL = process.env.BUSINESS_EMAIL || 'velooarchive@gmail.com';
+const MAIN_REPLY_COOLDOWN_MS = Number(process.env.MAIN_REPLY_COOLDOWN_MS || 30000);
 
 // TODO: Add restock / repost reminder flow.
 
 const activeUploads = new Map();
 const alertedVipMessages = new Set();
 const forwardedBrandMessages = new Set();
+const mainChannelReplyCooldowns = new Map();
 let mockupStore = loadMockupStore();
 
 const BRAND_CHANNEL_CONFIGS = [
@@ -172,9 +183,12 @@ function createEmptyMockupStore() {
         announcedVoteWeeks: [],
         outfitSubmissions: {},
         announcedOutfitDates: [],
+        listedItems: {},
         activityByMonth: {},
         announcedActivityMonths: [],
-        monthlyActivityWinners: {}
+        monthlyActivityWinners: {},
+        announcedCommunityCookedMonths: [],
+        communityCookedHistory: {}
     };
 }
 
@@ -192,11 +206,19 @@ function loadMockupStore() {
             announcedVoteWeeks: Array.isArray(parsed.announcedVoteWeeks) ? parsed.announcedVoteWeeks : [],
             outfitSubmissions: parsed.outfitSubmissions && typeof parsed.outfitSubmissions === 'object' ? parsed.outfitSubmissions : {},
             announcedOutfitDates: Array.isArray(parsed.announcedOutfitDates) ? parsed.announcedOutfitDates : [],
+            listedItems: parsed.listedItems && typeof parsed.listedItems === 'object' ? parsed.listedItems : {},
             activityByMonth: parsed.activityByMonth && typeof parsed.activityByMonth === 'object' ? parsed.activityByMonth : {},
             announcedActivityMonths: Array.isArray(parsed.announcedActivityMonths) ? parsed.announcedActivityMonths : [],
             monthlyActivityWinners:
                 parsed.monthlyActivityWinners && typeof parsed.monthlyActivityWinners === 'object'
                     ? parsed.monthlyActivityWinners
+                    : {},
+            announcedCommunityCookedMonths: Array.isArray(parsed.announcedCommunityCookedMonths)
+                ? parsed.announcedCommunityCookedMonths
+                : [],
+            communityCookedHistory:
+                parsed.communityCookedHistory && typeof parsed.communityCookedHistory === 'object'
+                    ? parsed.communityCookedHistory
                     : {}
         };
     } catch (error) {
@@ -252,6 +274,10 @@ function formatMonthLabel(monthKey) {
 
 function getActivityDisplayName(activityEntry, userId) {
     return activityEntry?.displayName || `<@${userId}>`;
+}
+
+function containsAnyKeyword(text, keywords) {
+    return keywords.some(keyword => text.includes(normalizeSearchText(keyword)));
 }
 
 function summarizeActivityBreakdown(breakdown = {}) {
@@ -358,6 +384,105 @@ function buildMonthlyActivityEmbeds(monthKey, sortedEntries) {
         .setTimestamp();
 
     return [summaryEmbed];
+}
+
+function getListedItem(itemId) {
+    const listedItem = mockupStore.listedItems[itemId];
+    if (!listedItem) {
+        return null;
+    }
+
+    if (!Array.isArray(listedItem.favoriteUserIds)) {
+        listedItem.favoriteUserIds = [];
+    }
+
+    if (!Array.isArray(listedItem.offerUserIds)) {
+        listedItem.offerUserIds = [];
+    }
+
+    return listedItem;
+}
+
+function getCommunityCookedScore(listedItem) {
+    const favoriteCount = listedItem.favoriteUserIds?.length || 0;
+    const offerCount = listedItem.offerUserIds?.length || 0;
+    const soldBonus = listedItem.soldAt ? 4 : 0;
+    return favoriteCount * 3 + offerCount * 2 + soldBonus;
+}
+
+function pickCommunityCookedItems(items) {
+    return [...items].sort((left, right) => {
+        const scoreDifference = getCommunityCookedScore(right) - getCommunityCookedScore(left);
+        if (scoreDifference !== 0) {
+            return scoreDifference;
+        }
+
+        const favoriteDifference = (right.favoriteUserIds?.length || 0) - (left.favoriteUserIds?.length || 0);
+        if (favoriteDifference !== 0) {
+            return favoriteDifference;
+        }
+
+        const offerDifference = (right.offerUserIds?.length || 0) - (left.offerUserIds?.length || 0);
+        if (offerDifference !== 0) {
+            return offerDifference;
+        }
+
+        return new Date(right.createdAt || 0).getTime() - new Date(left.createdAt || 0).getTime();
+    });
+}
+
+function buildCommunityCookedEmbeds(monthKey, topItems) {
+    const summaryLines = topItems.map((item, index) =>
+        `${index + 1}. **${item.brand} ${item.title}** - ${getCommunityCookedScore(item)} Score`
+    );
+
+    const summaryEmbed = new EmbedBuilder()
+        .setTitle('Community Cooked This')
+        .setDescription(
+            `Diese Pieces haben im ${formatMonthLabel(monthKey)} die Community am meisten gecookt.\n\n` +
+            summaryLines.join('\n')
+        )
+        .setColor('#ff8c42')
+        .setFooter({ text: `Community Cooked | ${monthKey}` })
+        .setTimestamp();
+
+    const itemEmbeds = topItems.map((item, index) => {
+        const itemEmbed = new EmbedBuilder()
+            .setTitle(`#${index + 1} ${item.brand} ${item.title}`.trim())
+            .setDescription(item.soldAt ? 'Dieses Piece wurde verkauft und war trotzdem ein Community-Favorit.' : 'Community-Favorit aus dem letzten Monat.')
+            .addFields(
+                { name: 'Preis', value: item.price || 'Unbekannt', inline: true },
+                { name: 'Size', value: item.size || 'Unbekannt', inline: true },
+                { name: 'Seller', value: `<@${item.sellerId}>`, inline: true },
+                { name: 'Favoriten', value: String(item.favoriteUserIds?.length || 0), inline: true },
+                { name: 'Offers', value: String(item.offerUserIds?.length || 0), inline: true },
+                { name: 'Score', value: String(getCommunityCookedScore(item)), inline: true }
+            )
+            .setColor(item.soldAt ? '#e67e22' : '#f1c40f')
+            .setFooter({ text: `Item-ID: ${item.itemId}` });
+
+        if (item.previewImageUrl) {
+            itemEmbed.setImage(item.previewImageUrl);
+        }
+
+        return itemEmbed;
+    });
+
+    return [summaryEmbed, ...itemEmbeds];
+}
+
+function buildCommunityCookedRows(topItems) {
+    return topItems
+        .filter(item => item.messageUrl)
+        .slice(0, 3)
+        .map((item, index) =>
+            new ActionRowBuilder().addComponents(
+                new ButtonBuilder()
+                    .setLabel(`Open #${index + 1}`)
+                    .setStyle(ButtonStyle.Link)
+                    .setURL(item.messageUrl)
+            )
+        );
 }
 
 function getDateKey(date = new Date()) {
@@ -614,6 +739,19 @@ async function resolveVipMention(guild) {
     return `@${VIP_ROLE_NAME}`;
 }
 
+async function resolveModeratorMention(guild) {
+    if (MODERATOR_ROLE_ID) {
+        return `<@&${MODERATOR_ROLE_ID}>`;
+    }
+
+    const roleByName = guild.roles.cache.find(role => role.name === MODERATOR_ROLE_NAME);
+    if (roleByName) {
+        return `<@&${roleByName.id}>`;
+    }
+
+    return `@${MODERATOR_ROLE_NAME}`;
+}
+
 function memberHasVipRole(member) {
     if (!member?.roles?.cache) {
         return false;
@@ -640,6 +778,179 @@ function buildVipHighlightField() {
         value: 'Dieser Post wurde mit VIP hervorgehoben.',
         inline: false
     };
+}
+
+function isMainReplyOnCooldown(userId, topicKey) {
+    const cooldownKey = `${userId}:${topicKey}`;
+    const lastReplyAt = mainChannelReplyCooldowns.get(cooldownKey) || 0;
+    const now = Date.now();
+
+    if (now - lastReplyAt < MAIN_REPLY_COOLDOWN_MS) {
+        return true;
+    }
+
+    mainChannelReplyCooldowns.set(cooldownKey, now);
+    return false;
+}
+
+function buildMainChannelReply(topicKey) {
+    if (topicKey === 'question') {
+        return (
+            'Wenn du eine Frage hast, schreib sie einfach direkt hier in den Chat.\n' +
+            `Fuer Start und Infos schau auch in ${getChannelMention(RULES_CHANNEL_ID, 'den Regeln-Bereich')}, ` +
+            `${getChannelMention(TUTORIAL_CHANNEL_ID, 'den Tutorial-Bereich')} und ` +
+            `${getChannelMention(INFO_CHANNEL_ID, 'den Info-Bereich')}.`
+        );
+    }
+
+    if (topicKey === 'socials') {
+        return (
+            `Unsere Socials:\nTikTok: ${TIKTOK_URL}\nInstagram: ${INSTAGRAM_HANDLE} - ${INSTAGRAM_URL}\n` +
+            `Business Mail: ${BUSINESS_EMAIL}`
+        );
+    }
+
+    if (topicKey === 'contact') {
+        return (
+            `Fuer Collabs, Business oder Kontakt:\nMail: ${BUSINESS_EMAIL}\n` +
+            `TikTok: ${TIKTOK_URL}\nInstagram: ${INSTAGRAM_HANDLE} - ${INSTAGRAM_URL}`
+        );
+    }
+
+    if (topicKey === 'sell') {
+        return (
+            `Wenn du ein Piece posten oder verkaufen willst, nutze ${getChannelMention(SELL_CHANNEL_ID, '`sell-your-piece`')}.\n` +
+            'Dort klickst du auf das Panel und laedst danach dein Bild mit `done` hoch.'
+        );
+    }
+
+    if (topicKey === 'latest_goods') {
+        return (
+            `${getChannelMention(LATEST_GOODS_CHANNEL_ID, '`latest-goods`')} ist fuer neue Pieces und aktuelle Posts.\n` +
+            'Wenn eine Brand erkannt wird, leitet der Bot den Post automatisch in den passenden Brand-Channel weiter.'
+        );
+    }
+
+    if (topicKey === 'mockup') {
+        return (
+            `Mockups kannst du in ${getChannelMention(MOCKUP_CHANNEL_ID, '`mockups`')} posten.\n` +
+            'Dort gibt es ein Panel, Voting und jede Woche einen Gewinner.'
+        );
+    }
+
+    if (topicKey === 'outfit') {
+        return (
+            `Deinen Fit kannst du in ${getChannelMention(OUTFIT_CHANNEL_ID, '`fits`')} posten.\n` +
+            'Dort gibt es das Daily Voting und jeden Tag einen Gewinner.'
+        );
+    }
+
+    if (topicKey === 'team') {
+        return TEAM_CHANNEL_ID
+            ? `Wenn du Leute fuer Projekte suchst, nutze ${getChannelMention(TEAM_CHANNEL_ID, '`team-up`')}.`
+            : 'Der Team-Up-Bereich ist aktuell nicht gesetzt.';
+    }
+
+    if (topicKey === 'vip') {
+        return (
+            `VIP lohnt sich, weil deine Posts extra hervorgehoben werden.\n` +
+            'VIP Listings, VIP Fits und VIP Mockups bekommen mehr Aufmerksamkeit im Feed.'
+        );
+    }
+
+    if (topicKey === 'rules') {
+        return (
+            `Alles Wichtige findest du hier:\n` +
+            `Regeln: ${getChannelMention(RULES_CHANNEL_ID, 'Regeln')}\n` +
+            `Tutorials: ${getChannelMention(TUTORIAL_CHANNEL_ID, 'Tutorials')}\n` +
+            `Infos: ${getChannelMention(INFO_CHANNEL_ID, 'Infos')}`
+        );
+    }
+
+    return null;
+}
+
+async function handleMainChannelAutoReply(message) {
+    if (!message.guild || message.channelId !== MAIN_CHANNEL_ID) {
+        return;
+    }
+
+    const normalizedContent = normalizeSearchText(message.content);
+    if (!normalizedContent) {
+        return;
+    }
+
+    const modRequested = /(^|\s)(mods?|moderator|moderation)(\s|$|[?!.,])/i.test(message.content);
+    if (modRequested) {
+        if (isMainReplyOnCooldown(message.author.id, 'mods')) {
+            return;
+        }
+
+        const moderatorMention = await resolveModeratorMention(message.guild);
+        await message.reply({
+            content: `${moderatorMention} <@${message.author.id}> braucht Hilfe im Main-Channel.`
+        }).catch(() => {});
+        return;
+    }
+
+    const topics = [
+        {
+            key: 'socials',
+            keywords: ['tiktok', 'tik tok', 'insta', 'instagram', 'socials', 'social media']
+        },
+        {
+            key: 'contact',
+            keywords: ['mail', 'email', 'e-mail', 'business', 'kontakt', 'contact', 'collab', 'kooperation']
+        },
+        {
+            key: 'question',
+            keywords: ['ich habe eine frage', 'frage', 'hilfe', 'help', 'support', 'kann mir jemand helfen']
+        },
+        {
+            key: 'sell',
+            keywords: ['verkaufen', 'sell', 'piece posten', 'listing', 'vinted link', 'sale']
+        },
+        {
+            key: 'latest_goods',
+            keywords: ['latest goods', 'latest-goods', 'neue pieces', 'finds', 'latest']
+        },
+        {
+            key: 'mockup',
+            keywords: ['mockup', 'archive idee', 'design idee', 'veloo archive']
+        },
+        {
+            key: 'outfit',
+            keywords: ['fit posten', 'outfit', 'fit', 'daily win']
+        },
+        {
+            key: 'team',
+            keywords: ['team', 'partner', 'projekt', 'project', 'team up', 'team-up']
+        },
+        {
+            key: 'vip',
+            keywords: ['vip', 'highlight', 'hervorgehoben']
+        },
+        {
+            key: 'rules',
+            keywords: ['regeln', 'tutorial', 'tutorials', 'infos', 'info', 'wie funktioniert der server', 'wo finde ich']
+        }
+    ];
+
+    const matchedTopic = topics.find(topic => containsAnyKeyword(normalizedContent, topic.keywords));
+    if (!matchedTopic) {
+        return;
+    }
+
+    if (isMainReplyOnCooldown(message.author.id, matchedTopic.key)) {
+        return;
+    }
+
+    const replyContent = buildMainChannelReply(matchedTopic.key);
+    if (!replyContent) {
+        return;
+    }
+
+    await message.reply({ content: replyContent }).catch(() => {});
 }
 
 function buildWelcomeEmbeds(member) {
@@ -783,6 +1094,112 @@ async function deleteMirroredItemCopies(guild, itemId) {
             }
         } catch (error) {
             console.error(`Error deleting mirrored items in ${channelId}:`, error.message);
+        }
+    }
+}
+
+function buildSoldComponentsFromMessage(message) {
+    if (!message.components?.length) {
+        return [];
+    }
+
+    return message.components.map(row => {
+        const soldRow = new ActionRowBuilder();
+        const buttons = row.components.map(component => {
+            const button = new ButtonBuilder(component.toJSON ? component.toJSON() : component.data || component);
+
+            if (button.data?.custom_id) {
+                button.setDisabled(true);
+
+                if (button.data.custom_id.startsWith('sold_')) {
+                    button.setLabel('SOLD');
+                }
+            }
+
+            return button;
+        });
+
+        soldRow.addComponents(buttons);
+        return soldRow;
+    });
+}
+
+function buildSoldEmbedsFromMessage(message) {
+    return message.embeds.map((embed, index) => {
+        const soldEmbed = EmbedBuilder.from(embed).setColor('#e74c3c');
+
+        if (index === 0) {
+            const currentTitle = embed.title || 'Piece';
+            const footerText = getEmbedFooterText(embed);
+            const titleWithSold = currentTitle.toUpperCase().includes('SOLD')
+                ? currentTitle
+                : `SOLD | ${currentTitle}`;
+            const soldNotice = 'Dieses Piece wurde verkauft.';
+            const existingDescription = embed.description || '';
+
+            soldEmbed
+                .setTitle(titleWithSold)
+                .setDescription(
+                    existingDescription.includes(soldNotice)
+                        ? existingDescription
+                        : [soldNotice, existingDescription].filter(Boolean).join('\n\n')
+                )
+                .setFooter({
+                    text: footerText.includes('SOLD') ? footerText : `${footerText} | SOLD`
+                });
+        }
+
+        return soldEmbed;
+    });
+}
+
+async function markMessageAsSold(message) {
+    const soldEmbeds = buildSoldEmbedsFromMessage(message);
+    const soldComponents = buildSoldComponentsFromMessage(message);
+
+    await message.edit({
+        content: '## SOLD\nDieses Piece ist verkauft.',
+        embeds: soldEmbeds,
+        components: soldComponents
+    }).catch(() => {});
+}
+
+async function markTrackedItemCopiesAsSold(guild, itemId, clickedMessage) {
+    if (clickedMessage) {
+        await markMessageAsSold(clickedMessage);
+    }
+
+    const channelsToCheck = new Map();
+
+    for (const channelId of ITEM_MIRROR_CHANNEL_IDS) {
+        const channel = await guild.channels.fetch(channelId).catch(() => null);
+        if (channel?.type === ChannelType.GuildText) {
+            channelsToCheck.set(channel.id, channel);
+        }
+    }
+
+    const favoriteChannels = guild.channels.cache.filter(channel =>
+        channel.type === ChannelType.GuildText && channel.name.startsWith('favs-')
+    );
+
+    for (const channel of favoriteChannels.values()) {
+        channelsToCheck.set(channel.id, channel);
+    }
+
+    for (const channel of channelsToCheck.values()) {
+        try {
+            const messages = await channel.messages.fetch({ limit: 100 });
+            const copies = messages.filter(message =>
+                message.id !== clickedMessage?.id &&
+                message.author.id === client.user.id &&
+                getEmbedFooterText(message.embeds[0])?.includes(`Item-ID: ${itemId}`)
+            );
+
+            for (const copy of copies.values()) {
+                await markMessageAsSold(copy);
+            }
+        } catch (error) {
+            console.error(`Error marking sold in ${channel.id}:`, error.message);
         }
     }
 }
@@ -1650,6 +2067,69 @@ async function announceMostActiveMemberIfNeeded(referenceDate = new Date()) {
     saveMockupStore();
 }
 
+async function announceCommunityCookedIfNeeded(referenceDate = new Date()) {
+    const targetMonthKey = getPreviousMonthKey(referenceDate);
+    if (mockupStore.announcedCommunityCookedMonths.includes(targetMonthKey)) {
+        return;
+    }
+
+    const monthItems = Object.values(mockupStore.listedItems)
+        .filter(item => item.monthKey === targetMonthKey)
+        .map(item => getListedItem(item.itemId))
+        .filter(Boolean)
+        .filter(item => getCommunityCookedScore(item) > 0);
+
+    if (!monthItems.length) {
+        mockupStore.announcedCommunityCookedMonths.push(targetMonthKey);
+        saveMockupStore();
+        return;
+    }
+
+    const topItems = pickCommunityCookedItems(monthItems).slice(0, 3);
+    if (!topItems.length) {
+        mockupStore.announcedCommunityCookedMonths.push(targetMonthKey);
+        saveMockupStore();
+        return;
+    }
+
+    const cookedChannel = await client.channels.fetch(COMMUNITY_COOKED_CHANNEL_ID).catch(() => null);
+    if (!cookedChannel) {
+        return;
+    }
+
+    const embeds = buildCommunityCookedEmbeds(targetMonthKey, topItems);
+    const rows = buildCommunityCookedRows(topItems);
+
+    try {
+        await cookedChannel.send({
+            content: `Community Cooked This fuer ${formatMonthLabel(targetMonthKey)} ist da.`,
+            embeds,
+            components: rows
+        });
+    } catch (error) {
+        console.error('Community Cooked announcement failed:', error.message);
+        return;
+    }
+
+    mockupStore.communityCookedHistory[targetMonthKey] = {
+        announcedAt: new Date().toISOString(),
+        items: topItems.map((item, index) => ({
+            rank: index + 1,
+            itemId: item.itemId,
+            brand: item.brand,
+            title: item.title,
+            sellerId: item.sellerId,
+            favoriteCount: item.favoriteUserIds?.length || 0,
+            offerCount: item.offerUserIds?.length || 0,
+            score: getCommunityCookedScore(item),
+            soldAt: item.soldAt || null,
+            messageUrl: item.messageUrl || null
+        }))
+    };
+    mockupStore.announcedCommunityCookedMonths.push(targetMonthKey);
+    saveMockupStore();
+}
+
 async function handleOutfitLike(interaction, entryId) {
     const submission = getOutfitSubmission(entryId);
     if (!submission) {
@@ -1777,12 +2257,33 @@ async function handleSellUploadMessage(message, uploadData) {
         return;
     }
 
-    await channel.send({
+    const sentMessage = await channel.send({
         content: isVipSeller ? '👑 VIP LISTING • extra hervorgehoben' : undefined,
         embeds: [embed],
         components: [row],
         files: imageFiles
     });
+
+    mockupStore.listedItems[itemId] = {
+        itemId,
+        messageId: sentMessage.id,
+        messageUrl: sentMessage.url,
+        channelId: sentMessage.channelId,
+        sellerId: message.author.id,
+        title: uploadData.title,
+        brand: uploadData.brand,
+        price: uploadData.price,
+        size: uploadData.size,
+        url: uploadData.url,
+        isVipSeller,
+        createdAt: new Date().toISOString(),
+        monthKey: getMonthKey(new Date()),
+        favoriteUserIds: [],
+        offerUserIds: [],
+        soldAt: null,
+        previewImageUrl: sentMessage.attachments.first()?.url || null
+    };
+    saveMockupStore();
 
     recordUserActivity(message.author.id, 'sell_upload', {
         displayName: creatorName
@@ -1982,6 +2483,9 @@ client.once('ready', async () => {
     await announceMostActiveMemberIfNeeded().catch(error => {
         console.error('Monthly activity winner check failed on startup:', error.message);
     });
+    await announceCommunityCookedIfNeeded().catch(error => {
+        console.error('Community Cooked check failed on startup:', error.message);
+    });
 
     cron.schedule('*/5 * * * *', async () => {
         await refreshPanels();
@@ -2002,6 +2506,10 @@ client.once('ready', async () => {
 
     cron.schedule(MONTHLY_ACTIVITY_CRON, async () => {
         await announceMostActiveMemberIfNeeded();
+    }, { timezone: TIMEZONE });
+
+    cron.schedule(COMMUNITY_COOKED_CRON, async () => {
+        await announceCommunityCookedIfNeeded();
     }, { timezone: TIMEZONE });
 });
 
@@ -2171,17 +2679,52 @@ client.on('interactionCreate', async interaction => {
                     });
                 }
 
-                await deleteFavoriteCopies(interaction.guild, itemId);
-                await deleteMirroredItemCopies(interaction.guild, itemId);
+                const listedItem = getListedItem(itemId);
+                if (listedItem?.soldAt) {
+                    return replyToInteraction(interaction, {
+                        content: 'Dieses Piece ist bereits als verkauft markiert.',
+                        ephemeral: true
+                    });
+                }
+
+                await markTrackedItemCopiesAsSold(interaction.guild, itemId, interaction.message);
                 await announceSale(sellerId).catch(error => {
                     console.error('Error posting sale message:', error.message);
                 });
+
+                if (listedItem) {
+                    listedItem.soldAt = new Date().toISOString();
+                    saveMockupStore();
+                } else {
+                    mockupStore.listedItems[itemId] = {
+                        itemId,
+                        sellerId,
+                        title: interaction.message.embeds[0]?.title || 'Piece',
+                        brand: interaction.message.embeds[0]?.title || 'Piece',
+                        price: 'Unbekannt',
+                        size: 'Unbekannt',
+                        messageId: interaction.message.id,
+                        messageUrl: interaction.message.url,
+                        channelId: interaction.channelId,
+                        createdAt: new Date().toISOString(),
+                        monthKey: getMonthKey(new Date()),
+                        favoriteUserIds: [],
+                        offerUserIds: [],
+                        soldAt: new Date().toISOString(),
+                        previewImageUrl:
+                            interaction.message.embeds[0]?.image?.url ||
+                            interaction.message.embeds[0]?.data?.image?.url ||
+                            null
+                    };
+                    saveMockupStore();
+                }
+
                 recordUserActivity(sellerId, 'sale_completed', {
                     displayName: getMemberDisplayName(interaction.member, interaction.user)
                 });
 
                 return replyToInteraction(interaction, {
-                    content: 'Item deleted, favorites cleaned up, and sale counted.',
+                    content: 'Piece wurde als SOLD markiert und der Sale wurde gezaehlt.',
                     ephemeral: true
                 });
             }
@@ -2238,6 +2781,12 @@ client.on('interactionCreate', async interaction => {
                     embeds: [originalEmbed],
                     components: [favoriteRow]
                 });
+
+                const listedItem = getListedItem(itemId);
+                if (listedItem && !listedItem.favoriteUserIds.includes(interaction.user.id)) {
+                    listedItem.favoriteUserIds.push(interaction.user.id);
+                    saveMockupStore();
+                }
                 recordUserActivity(interaction.user.id, 'favorite_saved', {
                     displayName: getMemberDisplayName(interaction.member, interaction.user)
                 });
@@ -2386,6 +2935,11 @@ client.on('interactionCreate', async interaction => {
 
                 try {
                     await seller.send({ embeds: [offerEmbed] });
+                    const listedItem = getListedItem(itemId);
+                    if (listedItem && !listedItem.offerUserIds.includes(interaction.user.id)) {
+                        listedItem.offerUserIds.push(interaction.user.id);
+                        saveMockupStore();
+                    }
                     recordUserActivity(interaction.user.id, 'offer_sent', {
                         displayName: getMemberDisplayName(interaction.member, interaction.user)
                     });
@@ -2432,6 +2986,10 @@ client.on('messageCreate', async message => {
         recordUserActivity(message.author.id, 'message_post', {
             displayName: getMemberDisplayName(message.member, message.author),
             cooldownMs: 10 * 60 * 1000
+        });
+
+        await handleMainChannelAutoReply(message).catch(error => {
+            console.error('Main channel auto reply failed:', error.message);
         });
     }
 
