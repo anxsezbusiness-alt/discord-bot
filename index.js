@@ -60,10 +60,16 @@ const MAIN_CHANNEL_ID = process.env.MAIN_CHANNEL_ID || '1492261145078272230';
 const MODERATOR_ROLE_ID = process.env.MODERATOR_ROLE_ID || null;
 const MODERATOR_ROLE_NAME = process.env.MODERATOR_ROLE_NAME || '𝘔𝘰𝘥𝘦𝘳𝘢𝘵𝘰𝘳';
 const TIKTOK_URL = process.env.TIKTOK_URL || 'https://www.tiktok.com/@velooarchive';
+const SECONDARY_TIKTOK_LABEL = process.env.SECONDARY_TIKTOK_LABEL || 'LCV Vintage TikTok';
+const SECONDARY_TIKTOK_URL = process.env.SECONDARY_TIKTOK_URL || 'https://www.tiktok.com/@lcv_vintage';
 const INSTAGRAM_HANDLE = process.env.INSTAGRAM_HANDLE || '@velooarchive';
 const INSTAGRAM_URL = process.env.INSTAGRAM_URL || 'https://www.instagram.com/velooarchive/';
+const WHATSAPP_CHANNEL_URL = process.env.WHATSAPP_CHANNEL_URL || 'https://whatsapp.com/channel/0029Vb8Qc1zEAKW5GYGaSJ3N';
 const BUSINESS_EMAIL = process.env.BUSINESS_EMAIL || 'velooarchive@gmail.com';
 const MAIN_REPLY_COOLDOWN_MS = Number(process.env.MAIN_REPLY_COOLDOWN_MS || 30000);
+const SELL_PANEL_TITLE = 'VELOO ARCHIVE / MARKET';
+const TEAM_PANEL_TITLE = 'VELOO ARCHIVE / TEAM-UP';
+const WELCOME_PANEL_TITLE = 'WELCOME TO VELOO ARCHIVE';
 
 // TODO: Add restock / repost reminder flow.
 
@@ -436,30 +442,32 @@ function buildCommunityCookedEmbeds(monthKey, topItems) {
         `${index + 1}. **${item.brand} ${item.title}** - ${getCommunityCookedScore(item)} Score`
     );
 
-    const summaryEmbed = new EmbedBuilder()
-        .setTitle('Community Cooked This')
-        .setDescription(
-            `Diese Pieces haben im ${formatMonthLabel(monthKey)} die Community am meisten gecookt.\n\n` +
-            summaryLines.join('\n')
-        )
-        .setColor('#ff8c42')
-        .setFooter({ text: `Community Cooked | ${monthKey}` })
-        .setTimestamp();
+    const summaryEmbed = buildPanelEmbed({
+        title: 'COMMUNITY COOKED THIS',
+        description:
+            `Die staerksten Community-Pieces aus ${formatMonthLabel(monthKey)}.\n\n` +
+            summaryLines.join('\n'),
+        color: '#c8b79c',
+        footerText: `VELOO ARCHIVE // COMMUNITY COOKED // ${monthKey}`
+    });
 
     const itemEmbeds = topItems.map((item, index) => {
-        const itemEmbed = new EmbedBuilder()
-            .setTitle(`#${index + 1} ${item.brand} ${item.title}`.trim())
-            .setDescription(item.soldAt ? 'Dieses Piece wurde verkauft und war trotzdem ein Community-Favorit.' : 'Community-Favorit aus dem letzten Monat.')
-            .addFields(
-                { name: 'Preis', value: item.price || 'Unbekannt', inline: true },
-                { name: 'Size', value: item.size || 'Unbekannt', inline: true },
-                { name: 'Seller', value: `<@${item.sellerId}>`, inline: true },
-                { name: 'Favoriten', value: String(item.favoriteUserIds?.length || 0), inline: true },
-                { name: 'Offers', value: String(item.offerUserIds?.length || 0), inline: true },
-                { name: 'Score', value: String(getCommunityCookedScore(item)), inline: true }
-            )
-            .setColor(item.soldAt ? '#e67e22' : '#f1c40f')
-            .setFooter({ text: `Item-ID: ${item.itemId}` });
+        const itemEmbed = buildPanelEmbed({
+            title: `LOOK ${index + 1} / ${item.brand} ${item.title}`.trim(),
+            description: item.soldAt
+                ? 'Dieses Piece wurde verkauft und hat den Monat trotzdem gecookt.'
+                : 'Community-Favorit aus dem letzten Monat.',
+            color: item.soldAt ? '#b78656' : '#d8cdbf',
+            fields: [
+                { name: 'PREIS', value: item.price || 'Unbekannt', inline: true },
+                { name: 'SIZE', value: item.size || 'Unbekannt', inline: true },
+                { name: 'SELLER', value: `<@${item.sellerId}>`, inline: true },
+                { name: 'FAVORITEN', value: String(item.favoriteUserIds?.length || 0), inline: true },
+                { name: 'OFFERS', value: String(item.offerUserIds?.length || 0), inline: true },
+                { name: 'SCORE', value: String(getCommunityCookedScore(item)), inline: true }
+            ],
+            footerText: `VELOO ARCHIVE // Item-ID: ${item.itemId}`
+        });
 
         if (item.previewImageUrl) {
             itemEmbed.setImage(item.previewImageUrl);
@@ -478,7 +486,7 @@ function buildCommunityCookedRows(topItems) {
         .map((item, index) =>
             new ActionRowBuilder().addComponents(
                 new ButtonBuilder()
-                    .setLabel(`Open #${index + 1}`)
+                    .setLabel(`OPEN LOOK ${index + 1}`)
                     .setStyle(ButtonStyle.Link)
                     .setURL(item.messageUrl)
             )
@@ -780,6 +788,166 @@ function buildVipHighlightField() {
     };
 }
 
+function buildInfoReplyPayload(interaction, content) {
+    const payload = { content };
+
+    if (typeof interaction.inGuild === 'function' && interaction.inGuild()) {
+        payload.ephemeral = true;
+    }
+
+    return payload;
+}
+
+function buildPanelEmbed({ title, description, color, fields = [], footerText }) {
+    const embed = new EmbedBuilder()
+        .setTitle(title)
+        .setDescription(description)
+        .setColor(color)
+        .setFooter({ text: footerText || 'VELOO ARCHIVE // INTERACTIVE PANEL' })
+        .setTimestamp();
+
+    if (fields.length) {
+        embed.addFields(fields);
+    }
+
+    return embed;
+}
+
+function buildWelcomeComponents() {
+    const guideRow = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+            .setCustomId('welcome_rules')
+            .setLabel('RULES')
+            .setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder()
+            .setCustomId('welcome_tutorials')
+            .setLabel('TUTORIALS')
+            .setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder()
+            .setCustomId('welcome_sell')
+            .setLabel('SELL')
+            .setStyle(ButtonStyle.Primary),
+        new ButtonBuilder()
+            .setCustomId('welcome_mockup')
+            .setLabel('MOCKUP')
+            .setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder()
+            .setCustomId('welcome_outfit')
+            .setLabel('FIT')
+            .setStyle(ButtonStyle.Secondary)
+    );
+
+    const linkRow = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+            .setLabel('TIKTOK')
+            .setStyle(ButtonStyle.Link)
+            .setURL(TIKTOK_URL),
+        new ButtonBuilder()
+            .setLabel('LCV')
+            .setStyle(ButtonStyle.Link)
+            .setURL(SECONDARY_TIKTOK_URL),
+        new ButtonBuilder()
+            .setLabel('INSTA')
+            .setStyle(ButtonStyle.Link)
+            .setURL(INSTAGRAM_URL),
+        new ButtonBuilder()
+            .setLabel('WHATSAPP')
+            .setStyle(ButtonStyle.Link)
+            .setURL(WHATSAPP_CHANNEL_URL)
+    );
+
+    return [guideRow, linkRow];
+}
+
+function buildWelcomeGuideText(topicKey) {
+    if (topicKey === 'welcome_rules') {
+        return (
+            `Bitte starte mit ${getChannelMention(RULES_CHANNEL_ID, 'dem Regeln-Bereich')}.\n` +
+            `Danach helfen dir ${getChannelMention(TUTORIAL_CHANNEL_ID, 'die Tutorials')} beim Einstieg.`
+        );
+    }
+
+    if (topicKey === 'welcome_tutorials') {
+        return (
+            'Schneller Start:\n' +
+            '01. Regeln lesen\n' +
+            '02. Tutorials checken\n' +
+            '03. Passenden Panel-Button nutzen\n' +
+            '04. Bild mit `done` senden, wenn der Bot es verlangt'
+        );
+    }
+
+    if (topicKey === 'welcome_sell') {
+        return (
+            `Verkaufen kannst du ueber ${getChannelMention(SELL_CHANNEL_ID, '`sell-your-piece`')}.\n` +
+            'Button klicken, Daten eintragen und danach genau 1 Bild mit `done` senden.'
+        );
+    }
+
+    if (topicKey === 'welcome_mockup') {
+        return (
+            `Mockups postest du in ${getChannelMention(MOCKUP_CHANNEL_ID, '`mockups`')}.\n` +
+            'Du gibst Art und Namen an und sendest danach 1 bis 3 Bilder mit `done`.'
+        );
+    }
+
+    if (topicKey === 'welcome_outfit') {
+        return (
+            `Fits postest du in ${getChannelMention(OUTFIT_CHANNEL_ID, '`fits`')}.\n` +
+            'Dort laedt jeder genau 1 Bild hoch und die Community votet taeglich.'
+        );
+    }
+
+    return null;
+}
+
+function buildPanelInfoText(topicKey) {
+    if (topicKey === 'sell_panel_info') {
+        return (
+            'Sell Flow:\n' +
+            '01. SELL PIECE klicken\n' +
+            '02. Piece, Brand, Price, Size und Vinted-Link eintragen\n' +
+            '03. Genau 1 Bild mit `done` senden\n' +
+            '04. Der Bot postet dein Listing interaktiv mit Fav, Offer und SOLD'
+        );
+    }
+
+    if (topicKey === 'sell_panel_vip') {
+        return 'VIP Listings werden im Feed deutlich sichtbarer hervorgehoben und wirken premiumer als normale Posts.';
+    }
+
+    if (topicKey === 'team_panel_info') {
+        return (
+            'Team-Up Flow:\n' +
+            '01. TEAM-UP klicken\n' +
+            '02. Kurz beschreiben, was du suchst\n' +
+            '03. Der Bot postet dein Gesuch fuer die Community sichtbar im Team-Bereich'
+        );
+    }
+
+    if (topicKey === 'mockup_panel_info') {
+        return (
+            'Mockup Flow:\n' +
+            '01. MOCKUP TEILEN klicken\n' +
+            '02. Kleidung oder Accessoire und deinen Namen eintragen\n' +
+            '03. Danach 1 bis 3 Bilder mit `done` senden\n' +
+            '04. Das Voting bleibt 7 Tage offen'
+        );
+    }
+
+    if (topicKey === 'outfit_panel_info') {
+        return (
+            'Fit Flow:\n' +
+            '01. FIT POSTEN klicken\n' +
+            '02. Deinen Fit kurz beschreiben und Namen eintragen\n' +
+            '03. Danach genau 1 Bild mit `done` senden\n' +
+            '04. Likes zaehlen bis Mitternacht'
+        );
+    }
+
+    return null;
+}
+
 function isMainReplyOnCooldown(userId, topicKey) {
     const cooldownKey = `${userId}:${topicKey}`;
     const lastReplyAt = mainChannelReplyCooldowns.get(cooldownKey) || 0;
@@ -805,7 +973,11 @@ function buildMainChannelReply(topicKey) {
 
     if (topicKey === 'socials') {
         return (
-            `Unsere Socials:\nTikTok: ${TIKTOK_URL}\nInstagram: ${INSTAGRAM_HANDLE} - ${INSTAGRAM_URL}\n` +
+            `Unsere Socials:\n` +
+            `VELOO TikTok: ${TIKTOK_URL}\n` +
+            `${SECONDARY_TIKTOK_LABEL}: ${SECONDARY_TIKTOK_URL}\n` +
+            `Instagram: ${INSTAGRAM_HANDLE} - ${INSTAGRAM_URL}\n` +
+            `WhatsApp Channel: ${WHATSAPP_CHANNEL_URL}\n` +
             `Business Mail: ${BUSINESS_EMAIL}`
         );
     }
@@ -813,7 +985,10 @@ function buildMainChannelReply(topicKey) {
     if (topicKey === 'contact') {
         return (
             `Fuer Collabs, Business oder Kontakt:\nMail: ${BUSINESS_EMAIL}\n` +
-            `TikTok: ${TIKTOK_URL}\nInstagram: ${INSTAGRAM_HANDLE} - ${INSTAGRAM_URL}`
+            `VELOO TikTok: ${TIKTOK_URL}\n` +
+            `${SECONDARY_TIKTOK_LABEL}: ${SECONDARY_TIKTOK_URL}\n` +
+            `Instagram: ${INSTAGRAM_HANDLE} - ${INSTAGRAM_URL}\n` +
+            `WhatsApp Channel: ${WHATSAPP_CHANNEL_URL}`
         );
     }
 
@@ -896,11 +1071,11 @@ async function handleMainChannelAutoReply(message) {
     const topics = [
         {
             key: 'socials',
-            keywords: ['tiktok', 'tik tok', 'insta', 'instagram', 'socials', 'social media']
+            keywords: ['tiktok', 'tik tok', 'insta', 'instagram', 'socials', 'social media', 'whatsapp', 'whatsapp channel', 'channel', 'lcv', 'lcv vintage', 'yestra']
         },
         {
             key: 'contact',
-            keywords: ['mail', 'email', 'e-mail', 'business', 'kontakt', 'contact', 'collab', 'kooperation']
+            keywords: ['mail', 'email', 'e-mail', 'business', 'kontakt', 'contact', 'collab', 'kooperation', 'whatsapp', 'erreichen']
         },
         {
             key: 'question',
@@ -956,51 +1131,67 @@ async function handleMainChannelAutoReply(message) {
 function buildWelcomeEmbeds(member) {
     const displayName = getMemberDisplayName(member, member.user);
 
-    const welcomeEmbed = new EmbedBuilder()
-        .setTitle(`Willkommen bei ${member.guild.name}`)
-        .setDescription(
-            `Hey ${displayName}, schoen dass du da bist.\n` +
-            `Hier ist dein kurzer Start, damit du direkt alles findest.`
-        )
-        .addFields(
+    const welcomeEmbed = buildPanelEmbed({
+        title: WELCOME_PANEL_TITLE,
+        description:
+            `Hey ${displayName}, willkommen im ${member.guild.name} Netzwerk.\n` +
+            'Vintage Pieces, Community Fits, Archive Mockups und VELOO Updates laufen hier an einem Ort zusammen.',
+        color: '#d9d3c7',
+        fields: [
             {
-                name: 'Regeln',
-                value: `Bitte lies zuerst ${getChannelMention(RULES_CHANNEL_ID, 'den Regeln-Channel')}.`
-            },
-            {
-                name: 'Tutorials',
-                value: `Alle How-to Infos findest du in ${getChannelMention(TUTORIAL_CHANNEL_ID, 'dem Tutorial-Channel')}.`
-            },
-            {
-                name: 'Wichtige Channels',
+                name: 'START',
                 value:
-                    `${getChannelMention(LATEST_GOODS_CHANNEL_ID, '`latest-goods`')} fuer neue Pieces\n` +
-                    `${getChannelMention(SELL_CHANNEL_ID, '`sell-your-piece`')} fuer Sales\n` +
-                    `${getChannelMention(MOCKUP_CHANNEL_ID, '`mockups`')} fuer Archive-Ideen\n` +
-                    `${getChannelMention(OUTFIT_CHANNEL_ID, '`fits`')} fuer Outfit-Posts`
+                    `Regeln: ${getChannelMention(RULES_CHANNEL_ID, 'Regeln')}\n` +
+                    `Tutorials: ${getChannelMention(TUTORIAL_CHANNEL_ID, 'Tutorials')}\n` +
+                    `Infos: ${getChannelMention(INFO_CHANNEL_ID, 'Infos')}`,
+                inline: false
             },
             {
-                name: 'Extra',
+                name: 'CORE PANELS',
                 value:
-                    `${getChannelMention(INFO_CHANNEL_ID, 'Weitere Infos im Info-Bereich')}.\n` +
-                    `VIP lohnt sich, weil VIP-Posts im Feed extra hervorgehoben werden.`
+                    `${getChannelMention(SELL_CHANNEL_ID, '`sell-your-piece`')} fuer Listings\n` +
+                    `${getChannelMention(MOCKUP_CHANNEL_ID, '`mockups`')} fuer Ideen\n` +
+                    `${getChannelMention(OUTFIT_CHANNEL_ID, '`fits`')} fuer Daily Fits`,
+                inline: false
+            },
+            {
+                name: 'SOCIALS',
+                value:
+                    `TikTok: ${TIKTOK_URL}\n` +
+                    `${SECONDARY_TIKTOK_LABEL}: ${SECONDARY_TIKTOK_URL}\n` +
+                    `WhatsApp: ${WHATSAPP_CHANNEL_URL}`,
+                inline: false
             }
-        )
-        .setColor('#5865f2')
-        .setThumbnail(member.user.displayAvatarURL())
-        .setTimestamp();
+        ],
+        footerText: 'VELOO ARCHIVE // WELCOME PANEL'
+    })
+        .setThumbnail(member.user.displayAvatarURL());
 
-    const tutorialEmbed = new EmbedBuilder()
-        .setTitle('So startest du')
-        .setDescription(
+    const guideEmbed = buildPanelEmbed({
+        title: 'HOW TO MOVE',
+        description:
+            'Nutze die Buttons unten, wenn du direkt Hilfe brauchst.\n\n' +
             '1. Lies die Regeln.\n' +
             '2. Schau dir die Tutorials an.\n' +
             '3. Poste dein Piece, dein Mockup oder deinen Fit.\n' +
-            '4. Like, vote und werde Teil der Community.'
-        )
-        .setColor('#3498db');
+            '4. Like, vote und werde Teil der Community.',
+        color: '#8f8a81',
+        fields: [
+            {
+                name: 'VIP',
+                value: 'VIP lohnt sich, weil Listings, Fits und Mockups deutlich staerker hervorgehoben werden.',
+                inline: false
+            },
+            {
+                name: 'SUPPORT',
+                value: 'Wenn du Hilfe brauchst, frag im Main-Channel oder schreib `mods` fuer das Mod-Team.',
+                inline: false
+            }
+        ],
+        footerText: 'VELOO ARCHIVE // START GUIDE'
+    });
 
-    return [welcomeEmbed, tutorialEmbed];
+    return [welcomeEmbed, guideEmbed];
 }
 
 async function handleVipDeal(message) {
@@ -1288,11 +1479,12 @@ async function replyToInteraction(interaction, payload) {
     return interaction.reply(payload).catch(() => null);
 }
 
-async function deletePanelMessages(channel, title) {
+async function deletePanelMessages(channel, titles) {
+    const titleList = Array.isArray(titles) ? titles : [titles];
     const messages = await channel.messages.fetch({ limit: 50 });
     const oldPanels = messages.filter(message =>
         message.author.id === client.user.id &&
-        message.embeds[0]?.title === title
+        titleList.includes(message.embeds[0]?.title)
     );
 
     for (const panel of oldPanels.values()) {
@@ -1306,18 +1498,47 @@ async function sendSellPanel() {
         return;
     }
 
-    await deletePanelMessages(sellChannel, 'SELL YOUR PIECE');
+    await deletePanelMessages(sellChannel, ['SELL YOUR PIECE', SELL_PANEL_TITLE]);
 
-    const embed = new EmbedBuilder()
-        .setTitle('SELL YOUR PIECE')
-        .setDescription('Click the button below to list your item for sale.\nVIP members get premium highlighted listings.')
-        .setColor('#000000');
+    const embed = buildPanelEmbed({
+        title: SELL_PANEL_TITLE,
+        description:
+            'Vintage listing panel fuer den cleanen Marketplace-Flow.\n' +
+            'Dein Post wird danach direkt mit Fav, Offer und SOLD steuerbar.',
+        color: '#d7d0c4',
+        fields: [
+            {
+                name: 'FORMAT',
+                value: 'Piece, Brand, Price, Size und Vinted-Link werden zuerst im Modal eingetragen.',
+                inline: false
+            },
+            {
+                name: 'UPLOAD',
+                value: 'Danach sendest du genau 1 Bild zusammen mit `done` in den Channel.',
+                inline: false
+            },
+            {
+                name: 'VIP',
+                value: 'VIP Listings werden im Feed gold hervorgehoben und wirken deutlich staerker.',
+                inline: false
+            }
+        ],
+        footerText: 'VELOO ARCHIVE // MARKET PANEL'
+    });
 
     const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
             .setCustomId('start_upload')
             .setLabel('SELL PIECE')
-            .setStyle(ButtonStyle.Primary)
+            .setStyle(ButtonStyle.Primary),
+        new ButtonBuilder()
+            .setCustomId('sell_panel_info')
+            .setLabel('HOW IT WORKS')
+            .setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder()
+            .setCustomId('sell_panel_vip')
+            .setLabel('VIP INFO')
+            .setStyle(ButtonStyle.Secondary)
     );
 
     await sellChannel.send({ embeds: [embed], components: [row] });
@@ -1333,18 +1554,38 @@ async function sendTeamPanel() {
         return;
     }
 
-    await deletePanelMessages(teamChannel, 'FIND A TEAM');
+    await deletePanelMessages(teamChannel, ['FIND A TEAM', TEAM_PANEL_TITLE]);
 
-    const embed = new EmbedBuilder()
-        .setTitle('FIND A TEAM')
-        .setDescription('Find partners for your projects here.')
-        .setColor('#2ecc71');
+    const embed = buildPanelEmbed({
+        title: TEAM_PANEL_TITLE,
+        description:
+            'Finde Leute fuer Resell-Aktionen, gemeinsame Snipes und Archive-Projekte.\n' +
+            'Kurzer Input rein, dann sieht die Community direkt, was du suchst.',
+        color: '#8e9486',
+        fields: [
+            {
+                name: 'USE CASES',
+                value: 'Resell Partner, Snipe Session, Berlin Meet-up, Brand Austausch, Project Match.',
+                inline: false
+            },
+            {
+                name: 'FLOW',
+                value: 'TEAM-UP klicken, dein Gesuch schreiben und direkt als cleanen Post veroeffentlichen.',
+                inline: false
+            }
+        ],
+        footerText: 'VELOO ARCHIVE // TEAM PANEL'
+    });
 
     const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
             .setCustomId('start_teamup')
             .setLabel('TEAM-UP')
-            .setStyle(ButtonStyle.Success)
+            .setStyle(ButtonStyle.Success),
+        new ButtonBuilder()
+            .setCustomId('team_panel_info')
+            .setLabel('HOW IT WORKS')
+            .setStyle(ButtonStyle.Secondary)
     );
 
     await teamChannel.send({ embeds: [embed], components: [row] });
@@ -1358,25 +1599,38 @@ async function sendMockupPanel() {
 
     await deletePanelMessages(mockupChannel, MOCKUP_PANEL_TITLE);
 
-    const embed = new EmbedBuilder()
-        .setTitle(MOCKUP_PANEL_TITLE)
-        .setDescription('Teile dein Mockup fuer Veloo Archive und gewinne dein eigenes Piece.')
-        .addFields(
+    const embed = buildPanelEmbed({
+        title: MOCKUP_PANEL_TITLE,
+        description:
+            'Archive Board fuer neue VELOO Ideen.\n' +
+            'Poste dein Konzept sauber und lass die Community 7 Tage lang voten.',
+        color: '#bda98b',
+        fields: [
             {
-                name: 'Was du eintragen sollst',
+                name: 'INPUT',
                 value: 'Welche Art von Kleidung oder Accessoire du teilst, zum Beispiel Hoodie, Jersey, Cap, Tote Bag oder Beanie.'
             },
             {
-                name: 'So funktioniert es',
+                name: 'UPLOAD',
                 value: 'Klicke auf den Button, trage deine Angaben ein und sende danach genau eine Nachricht mit 1 bis 3 Bildern und dem Text `done`.'
+            },
+            {
+                name: 'VOTING',
+                value: 'Die Community kann 7 Tage lang liken. Reports gehen direkt an das Mod-Team.',
+                inline: false
             }
-        )
-        .setColor('#e67e22');
+        ],
+        footerText: 'VELOO ARCHIVE // MOCKUP PANEL'
+    });
 
     const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
             .setCustomId('start_mockup_upload')
             .setLabel('MOCKUP TEILEN')
+            .setStyle(ButtonStyle.Secondary),
+        new ButtonBuilder()
+            .setCustomId('mockup_panel_info')
+            .setLabel('VOTE INFO')
             .setStyle(ButtonStyle.Secondary)
     );
 
@@ -1391,26 +1645,39 @@ async function sendOutfitPanel() {
 
     await deletePanelMessages(outfitChannel, OUTFIT_PANEL_TITLE);
 
-    const embed = new EmbedBuilder()
-        .setTitle(OUTFIT_PANEL_TITLE)
-        .setDescription('Teile deinen Fit mit der Community und hol dir den Daily Win.')
-        .addFields(
+    const embed = buildPanelEmbed({
+        title: OUTFIT_PANEL_TITLE,
+        description:
+            'Daily fit panel fuer starke archive und streetwear Looks.\n' +
+            'Ein cleanes Bild, kurzer Text und die Community votet bis Mitternacht.',
+        color: '#9ca4af',
+        fields: [
             {
-                name: 'Was du eintragen sollst',
+                name: 'INPUT',
                 value: 'Beschreibe kurz dein Outfit, zum Beispiel Vintage Nike Zip, Baggy Denim und New Balance 9060.'
             },
             {
-                name: 'So funktioniert es',
+                name: 'UPLOAD',
                 value: 'Klicke auf den Button, fuelle das Modal aus und sende danach genau eine Nachricht mit 1 Bild und dem Text `done`.'
+            },
+            {
+                name: 'DAILY WIN',
+                value: 'Likes laufen bis Mitternacht. Danach postet der Bot den Tagesgewinner automatisch.',
+                inline: false
             }
-        )
-        .setColor('#3498db');
+        ],
+        footerText: 'VELOO ARCHIVE // FIT PANEL'
+    });
 
     const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
             .setCustomId('start_outfit_upload')
             .setLabel('FIT POSTEN')
-            .setStyle(ButtonStyle.Primary)
+            .setStyle(ButtonStyle.Primary),
+        new ButtonBuilder()
+            .setCustomId('outfit_panel_info')
+            .setLabel('DAILY WIN INFO')
+            .setStyle(ButtonStyle.Secondary)
     );
 
     await outfitChannel.send({ embeds: [embed], components: [row] });
@@ -2458,7 +2725,8 @@ client.on('guildMemberAdd', async member => {
 
     await member.send({
         content: `Willkommen auf ${member.guild.name}. Hier ist dein Start-Guide.`,
-        embeds: welcomeEmbeds
+        embeds: welcomeEmbeds,
+        components: buildWelcomeComponents()
     }).catch(error => {
         console.error(`Welcome DM could not be sent to ${member.user.tag}:`, error.message);
     });
@@ -2516,6 +2784,36 @@ client.once('ready', async () => {
 client.on('interactionCreate', async interaction => {
     try {
         if (interaction.isButton()) {
+            if (
+                [
+                    'welcome_rules',
+                    'welcome_tutorials',
+                    'welcome_sell',
+                    'welcome_mockup',
+                    'welcome_outfit'
+                ].includes(interaction.customId)
+            ) {
+                const welcomeText = buildWelcomeGuideText(interaction.customId);
+                if (welcomeText) {
+                    return replyToInteraction(interaction, buildInfoReplyPayload(interaction, welcomeText));
+                }
+            }
+
+            if (
+                [
+                    'sell_panel_info',
+                    'sell_panel_vip',
+                    'team_panel_info',
+                    'mockup_panel_info',
+                    'outfit_panel_info'
+                ].includes(interaction.customId)
+            ) {
+                const panelInfoText = buildPanelInfoText(interaction.customId);
+                if (panelInfoText) {
+                    return replyToInteraction(interaction, buildInfoReplyPayload(interaction, panelInfoText));
+                }
+            }
+
             if (interaction.customId === 'start_upload') {
                 const modal = new ModalBuilder()
                     .setCustomId('upload_modal')
