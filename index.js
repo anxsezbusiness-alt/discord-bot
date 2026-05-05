@@ -3,6 +3,7 @@ const {
     GatewayIntentBits,
     EmbedBuilder,
     ActionRowBuilder,
+    StringSelectMenuBuilder,
     ButtonBuilder,
     ButtonStyle,
     ModalBuilder,
@@ -57,6 +58,7 @@ const MONTHLY_ACTIVITY_CRON = process.env.MONTHLY_ACTIVITY_CRON || '0 0 1 * *';
 const COMMUNITY_COOKED_CHANNEL_ID = process.env.COMMUNITY_COOKED_CHANNEL_ID || '1501207095092183201';
 const COMMUNITY_COOKED_CRON = process.env.COMMUNITY_COOKED_CRON || '0 0 1 * *';
 const MAIN_CHANNEL_ID = process.env.MAIN_CHANNEL_ID || '1492261145078272230';
+const REACTION_ROLE_CHANNEL_ID = process.env.REACTION_ROLE_CHANNEL_ID || '1492255500434407631';
 const MODERATOR_ROLE_ID = process.env.MODERATOR_ROLE_ID || null;
 const MODERATOR_ROLE_NAME = process.env.MODERATOR_ROLE_NAME || '𝘔𝘰𝘥𝘦𝘳𝘢𝘵𝘰𝘳';
 const TIKTOK_URL = process.env.TIKTOK_URL || 'https://www.tiktok.com/@velooarchive';
@@ -67,9 +69,13 @@ const INSTAGRAM_URL = process.env.INSTAGRAM_URL || 'https://www.instagram.com/ve
 const WHATSAPP_CHANNEL_URL = process.env.WHATSAPP_CHANNEL_URL || 'https://whatsapp.com/channel/0029Vb8Qc1zEAKW5GYGaSJ3N';
 const BUSINESS_EMAIL = process.env.BUSINESS_EMAIL || 'velooarchive@gmail.com';
 const MAIN_REPLY_COOLDOWN_MS = Number(process.env.MAIN_REPLY_COOLDOWN_MS || 30000);
+const TRUSTED_SELLER_ROLE_ID = process.env.TRUSTED_SELLER_ROLE_ID || null;
+const TRUSTED_SELLER_ROLE_NAME = process.env.TRUSTED_SELLER_ROLE_NAME || '𝐓𝐫𝐮𝐬𝐭𝐞𝐝𝐒𝐞𝐥𝐥𝐞𝐫';
+const TRUSTED_SELLER_MIN_SALES = Number(process.env.TRUSTED_SELLER_MIN_SALES || 5);
 const SELL_PANEL_TITLE = 'VELOO ARCHIVE / MARKET';
 const TEAM_PANEL_TITLE = 'VELOO ARCHIVE / TEAM-UP';
 const WELCOME_PANEL_TITLE = 'WELCOME TO VELOO ARCHIVE';
+const ROLE_PANEL_TITLE = 'VELOO&YESTERA / ROLES';
 
 // TODO: Add restock / repost reminder flow.
 
@@ -110,6 +116,39 @@ const BRAND_CHANNEL_CONFIGS = [
     { label: 'Moncler', keywords: ['moncler'], channelId: '1500936732890235041' },
     { label: 'Vivienne Westwood', keywords: ['vivienne westwood', 'vivienne-westwood'], channelId: '1500936760044159287' },
     { label: 'Supreme', keywords: ['supreme'], channelId: '1500936788632539397' }
+];
+
+const REACTION_ROLE_OPTIONS = [
+    {
+        value: 'role_vintage',
+        roleName: '𝑽𝒊𝒏𝒕𝒂𝒈𝒆',
+        label: 'Vintage',
+        description: 'Fuer Vintage Content und Finds'
+    },
+    {
+        value: 'role_vintage_resell',
+        roleName: '𝑽𝒊𝒏𝒕𝒂𝒈𝒆𝑹𝒆𝒔𝒆𝒍𝒍',
+        label: 'VintageResell',
+        description: 'Fuer Sales, Snipes und Resell'
+    },
+    {
+        value: 'role_mockups',
+        roleName: '𝑴𝒐𝒄𝒌𝒖𝒑𝒔',
+        label: 'Mockups',
+        description: 'Fuer Mockups und Design-Ideen'
+    },
+    {
+        value: 'role_fits',
+        roleName: '𝑭𝒊𝒕𝒔',
+        label: 'Fits',
+        description: 'Fuer Fit-Posts und Daily Wins'
+    },
+    {
+        value: 'role_brand_member',
+        roleName: '𝑩𝒓𝒂𝒏𝒅𝑴𝑬𝑴𝑩𝑬𝑹',
+        label: 'BrandMEMBER',
+        description: 'Fuer VELOO&YESTERA Brand Updates'
+    }
 ];
 
 const ITEM_MIRROR_CHANNEL_IDS = [...new Set([
@@ -760,6 +799,46 @@ async function resolveModeratorMention(guild) {
     return `@${MODERATOR_ROLE_NAME}`;
 }
 
+function findRoleByIdOrName(guild, roleId, roleName) {
+    if (!guild?.roles?.cache) {
+        return null;
+    }
+
+    if (roleId && guild.roles.cache.has(roleId)) {
+        return guild.roles.cache.get(roleId);
+    }
+
+    return guild.roles.cache.find(role => role.name === roleName) || null;
+}
+
+function getReactionRoleConfigs() {
+    return REACTION_ROLE_OPTIONS.map(option => ({
+        ...option,
+        roleId: process.env[`REACTION_ROLE_ID_${option.value.toUpperCase()}`] || null
+    }));
+}
+
+function buildReactionRoleSelectMenu() {
+    return new StringSelectMenuBuilder()
+        .setCustomId('reaction_roles_select')
+        .setPlaceholder('Wähle deine Rollen aus')
+        .setMinValues(0)
+        .setMaxValues(REACTION_ROLE_OPTIONS.length)
+        .addOptions(
+            REACTION_ROLE_OPTIONS.map(option => ({
+                label: option.label,
+                description: option.description,
+                value: option.value
+            }))
+        );
+}
+
+function buildReactionRoleRows() {
+    return [
+        new ActionRowBuilder().addComponents(buildReactionRoleSelectMenu())
+    ];
+}
+
 function memberHasVipRole(member) {
     if (!member?.roles?.cache) {
         return false;
@@ -1151,7 +1230,8 @@ function buildWelcomeEmbeds(member) {
                 value:
                     `${getChannelMention(SELL_CHANNEL_ID, '`sell-your-piece`')} fuer Listings\n` +
                     `${getChannelMention(MOCKUP_CHANNEL_ID, '`mockups`')} fuer Ideen\n` +
-                    `${getChannelMention(OUTFIT_CHANNEL_ID, '`fits`')} fuer Daily Fits`,
+                    `${getChannelMention(OUTFIT_CHANNEL_ID, '`fits`')} fuer Daily Fits\n` +
+                    `${getChannelMention(REACTION_ROLE_CHANNEL_ID, '`roles`')} fuer deine Rollen`,
                 inline: false
             },
             {
@@ -1430,10 +1510,106 @@ async function countUserSales(salesChannel, userId) {
     return count;
 }
 
+async function collectSalesCounts(salesChannel) {
+    const salesCounts = new Map();
+    let lastId;
+
+    while (true) {
+        const options = { limit: 100 };
+        if (lastId) {
+            options.before = lastId;
+        }
+
+        const messages = await salesChannel.messages.fetch(options);
+        if (!messages.size) {
+            break;
+        }
+
+        for (const message of messages.values()) {
+            if (message.author.id !== client.user.id) {
+                continue;
+            }
+
+            const footerText = getEmbedFooterText(message.embeds[0]);
+            const match = footerText.match(/^Sale-User-ID:\s*(\d+)$/);
+            if (!match) {
+                continue;
+            }
+
+            const sellerId = match[1];
+            salesCounts.set(sellerId, (salesCounts.get(sellerId) || 0) + 1);
+        }
+
+        lastId = messages.last().id;
+        if (messages.size < 100) {
+            break;
+        }
+    }
+
+    return salesCounts;
+}
+
+async function syncTrustedSellerRoleForMember(guild, userId, saleCount) {
+    const trustedRole = findRoleByIdOrName(guild, TRUSTED_SELLER_ROLE_ID, TRUSTED_SELLER_ROLE_NAME);
+    if (!trustedRole) {
+        return false;
+    }
+
+    const member = await guild.members.fetch(userId).catch(() => null);
+    if (!member) {
+        return false;
+    }
+
+    if (saleCount >= TRUSTED_SELLER_MIN_SALES) {
+        if (!member.roles.cache.has(trustedRole.id)) {
+            await member.roles.add(trustedRole).catch(() => {});
+            return true;
+        }
+
+        return false;
+    }
+
+    if (member.roles.cache.has(trustedRole.id)) {
+        await member.roles.remove(trustedRole).catch(() => {});
+        return true;
+    }
+
+    return false;
+}
+
+async function syncTrustedSellerRoles() {
+    const salesChannel = await client.channels.fetch(SALES_CHANNEL_ID).catch(() => null);
+    if (!salesChannel?.guild) {
+        return;
+    }
+
+    const guild = salesChannel.guild;
+    const trustedRole = findRoleByIdOrName(guild, TRUSTED_SELLER_ROLE_ID, TRUSTED_SELLER_ROLE_NAME);
+    if (!trustedRole) {
+        return;
+    }
+
+    const salesCounts = await collectSalesCounts(salesChannel);
+    await guild.members.fetch().catch(() => null);
+
+    for (const [sellerId, saleCount] of salesCounts.entries()) {
+        if (saleCount >= TRUSTED_SELLER_MIN_SALES) {
+            await syncTrustedSellerRoleForMember(guild, sellerId, saleCount);
+        }
+    }
+
+    for (const member of trustedRole.members.values()) {
+        const saleCount = salesCounts.get(member.id) || 0;
+        if (saleCount < TRUSTED_SELLER_MIN_SALES) {
+            await member.roles.remove(trustedRole).catch(() => {});
+        }
+    }
+}
+
 async function announceSale(sellerId) {
     const salesChannel = await client.channels.fetch(SALES_CHANNEL_ID).catch(() => null);
     if (!salesChannel) {
-        return;
+        return null;
     }
 
     const previousSales = await countUserSales(salesChannel, sellerId);
@@ -1450,6 +1626,8 @@ async function announceSale(sellerId) {
         content: `<@${sellerId}> just sold their ${currentSaleNumber}${getOrdinalSuffix(currentSaleNumber)} piece!`,
         embeds: [embed]
     });
+
+    return currentSaleNumber;
 }
 
 function getOrdinalSuffix(number) {
@@ -1683,6 +1861,43 @@ async function sendOutfitPanel() {
     await outfitChannel.send({ embeds: [embed], components: [row] });
 }
 
+async function sendReactionRolePanel() {
+    const roleChannel = await client.channels.fetch(REACTION_ROLE_CHANNEL_ID).catch(() => null);
+    if (!roleChannel) {
+        return;
+    }
+
+    await deletePanelMessages(roleChannel, ROLE_PANEL_TITLE);
+
+    const embed = buildPanelEmbed({
+        title: ROLE_PANEL_TITLE,
+        description:
+            'Wähle hier die Bereiche aus, die dich interessieren.\n' +
+            'Du kannst mehrere Rollen gleichzeitig tragen und deine Auswahl jederzeit ändern.',
+        color: '#cfc6b8',
+        fields: [
+            {
+                name: 'ROLE PICK',
+                value:
+                    'Vintage, VintageResell, Mockups, Fits und BrandMEMBER stehen dir direkt zur Auswahl.',
+                inline: false
+            },
+            {
+                name: 'AUTO ROLE',
+                value:
+                    `${TRUSTED_SELLER_ROLE_NAME} wird automatisch vergeben, sobald du ${TRUSTED_SELLER_MIN_SALES} Sales erreicht hast.`,
+                inline: false
+            }
+        ],
+        footerText: 'VELOO&YESTERA // ROLE PANEL'
+    });
+
+    await roleChannel.send({
+        embeds: [embed],
+        components: buildReactionRoleRows()
+    });
+}
+
 async function refreshPanels() {
     console.log(`[${new Date().toLocaleTimeString('de-DE', { timeZone: TIMEZONE })}] Refreshing panels...`);
 
@@ -1708,6 +1923,12 @@ async function refreshPanels() {
         await sendOutfitPanel();
     } catch (error) {
         console.error('Outfit channel error:', error.message);
+    }
+
+    try {
+        await sendReactionRolePanel();
+    } catch (error) {
+        console.error('Reaction role channel error:', error.message);
     }
 }
 
@@ -2754,6 +2975,9 @@ client.once('ready', async () => {
     await announceCommunityCookedIfNeeded().catch(error => {
         console.error('Community Cooked check failed on startup:', error.message);
     });
+    await syncTrustedSellerRoles().catch(error => {
+        console.error('Trusted seller sync failed on startup:', error.message);
+    });
 
     cron.schedule('*/5 * * * *', async () => {
         await refreshPanels();
@@ -2762,6 +2986,10 @@ client.once('ready', async () => {
     cron.schedule('0 * * * *', async () => {
         await closeExpiredMockupVotes();
         await closeExpiredOutfitVotes();
+    }, { timezone: TIMEZONE });
+
+    cron.schedule('0 4 * * *', async () => {
+        await syncTrustedSellerRoles();
     }, { timezone: TIMEZONE });
 
     cron.schedule(MOCKUP_WEEKLY_CRON, async () => {
@@ -2783,6 +3011,78 @@ client.once('ready', async () => {
 
 client.on('interactionCreate', async interaction => {
     try {
+        if (interaction.isStringSelectMenu()) {
+            if (interaction.customId === 'reaction_roles_select') {
+                if (!interaction.inGuild()) {
+                    return replyToInteraction(interaction, {
+                        content: 'Diese Rollen kannst du nur im Server auswaehlen.',
+                        ephemeral: true
+                    });
+                }
+
+                await interaction.guild.roles.fetch().catch(() => null);
+                const member = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
+                if (!member) {
+                    return replyToInteraction(interaction, {
+                        content: 'Dein Mitgliedsprofil konnte nicht geladen werden.',
+                        ephemeral: true
+                    });
+                }
+
+                const selectedValues = new Set(interaction.values);
+                const roleConfigs = getReactionRoleConfigs();
+                const resolvedRoles = roleConfigs
+                    .map(config => ({
+                        ...config,
+                        role: findRoleByIdOrName(interaction.guild, config.roleId, config.roleName)
+                    }))
+                    .filter(config => config.role);
+
+                const missingRoles = roleConfigs.filter(config =>
+                    !resolvedRoles.some(resolved => resolved.value === config.value)
+                );
+
+                const roleIdsToAdd = resolvedRoles
+                    .filter(config =>
+                        selectedValues.has(config.value) &&
+                        !member.roles.cache.has(config.role.id)
+                    )
+                    .map(config => config.role.id);
+
+                const roleIdsToRemove = resolvedRoles
+                    .filter(config =>
+                        !selectedValues.has(config.value) &&
+                        member.roles.cache.has(config.role.id)
+                    )
+                    .map(config => config.role.id);
+
+                if (roleIdsToAdd.length) {
+                    await member.roles.add(roleIdsToAdd).catch(() => {});
+                }
+
+                if (roleIdsToRemove.length) {
+                    await member.roles.remove(roleIdsToRemove).catch(() => {});
+                }
+
+                const selectedRoleNames = resolvedRoles
+                    .filter(config => selectedValues.has(config.value))
+                    .map(config => config.roleName);
+
+                let content = selectedRoleNames.length
+                    ? `Deine Rollen wurden aktualisiert: ${selectedRoleNames.join(', ')}`
+                    : 'Deine auswählbaren Rollen wurden entfernt.';
+
+                if (missingRoles.length) {
+                    content += `\nNicht gefunden: ${missingRoles.map(role => role.roleName).join(', ')}`;
+                }
+
+                return replyToInteraction(interaction, {
+                    content,
+                    ephemeral: true
+                });
+            }
+        }
+
         if (interaction.isButton()) {
             if (
                 [
@@ -2986,8 +3286,9 @@ client.on('interactionCreate', async interaction => {
                 }
 
                 await markTrackedItemCopiesAsSold(interaction.guild, itemId, interaction.message);
-                await announceSale(sellerId).catch(error => {
+                const currentSaleNumber = await announceSale(sellerId).catch(error => {
                     console.error('Error posting sale message:', error.message);
+                    return null;
                 });
 
                 if (listedItem) {
@@ -3015,6 +3316,12 @@ client.on('interactionCreate', async interaction => {
                             null
                     };
                     saveMockupStore();
+                }
+
+                if (currentSaleNumber !== null) {
+                    await syncTrustedSellerRoleForMember(interaction.guild, sellerId, currentSaleNumber).catch(error => {
+                        console.error('Trusted seller update failed:', error.message);
+                    });
                 }
 
                 recordUserActivity(sellerId, 'sale_completed', {
