@@ -47,14 +47,14 @@ const LATEST_GOODS_CHANNEL_ID = process.env.LATEST_GOODS_CHANNEL_ID || SELL_CHAN
 const MOCKUP_CHANNEL_ID = process.env.MOCKUP_CHANNEL_ID || '1500527497345761533';
 const MOCKUP_REPORT_CHANNEL_ID = process.env.MOCKUP_REPORT_CHANNEL_ID || '1492261750110949509';
 const MOCKUP_STORE_PATH = path.join(__dirname, 'mockup-submissions.json');
-const MOCKUP_PANEL_TITLE = 'SHARE YOUR MOCKUP FOR VELOO ARCHIVE';
+const MOCKUP_PANEL_TITLE = 'TEILE DEIN MOCKUP FUER VELOO ARCHIVE';
 const MOCKUP_VOTE_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 const MOCKUP_WEEKLY_CRON = process.env.MOCKUP_WEEKLY_CRON || '0 0 * * 1';
 const OUTFIT_CHANNEL_ID = process.env.OUTFIT_CHANNEL_ID || '1500934646265810965';
-const OUTFIT_PANEL_TITLE = 'POST YOUR FIT';
+const OUTFIT_PANEL_TITLE = 'POSTE DEINEN FIT';
 const OUTFIT_DAILY_CRON = process.env.OUTFIT_DAILY_CRON || '0 0 * * *';
 const ISO_CHANNEL_ID = process.env.ISO_CHANNEL_ID || '1492913251577626724';
-const ISO_PANEL_TITLE = 'LOOKING FOR / ISO';
+const ISO_PANEL_TITLE = 'SUCHE / ISO';
 const MONTHLY_ACTIVITY_CHANNEL_ID = process.env.MONTHLY_ACTIVITY_CHANNEL_ID || '1500944487357223092';
 const MONTHLY_ACTIVITY_CRON = process.env.MONTHLY_ACTIVITY_CRON || '0 0 1 * *';
 const COMMUNITY_COOKED_CHANNEL_ID = process.env.COMMUNITY_COOKED_CHANNEL_ID || '1501207095092183201';
@@ -76,10 +76,10 @@ const TRUSTED_SELLER_ROLE_NAME = process.env.TRUSTED_SELLER_ROLE_NAME || '𝐓�
 const TRUSTED_SELLER_MIN_SALES = Number(process.env.TRUSTED_SELLER_MIN_SALES || 5);
 const EFFECTIVE_MODERATOR_ROLE_NAME = process.env.MODERATOR_ROLE_NAME || '𝘔𝘰𝘥𝘦𝘳𝘢𝘵𝘰𝘳';
 const EFFECTIVE_TRUSTED_SELLER_ROLE_NAME = process.env.TRUSTED_SELLER_ROLE_NAME || '𝐓𝐫𝐮𝐬𝐭𝐞𝐝𝐒𝐞𝐥𝐥𝐞𝐫';
-const SELL_PANEL_TITLE = 'VELOO ARCHIVE / MARKET';
-const TEAM_PANEL_TITLE = 'VELOO ARCHIVE / TEAM-UP';
-const WELCOME_PANEL_TITLE = 'WELCOME TO VELOO ARCHIVE';
-const ROLE_PANEL_TITLE = 'VELOO&YESTERA / ROLES';
+const SELL_PANEL_TITLE = 'VELOO ARCHIVE / MARKT';
+const TEAM_PANEL_TITLE = 'VELOO ARCHIVE / TEAMFINDER';
+const WELCOME_PANEL_TITLE = 'WILLKOMMEN BEI VELOO ARCHIVE';
+const ROLE_PANEL_TITLE = 'VELOO&YESTERA / ROLLEN';
 const DEFAULT_MODERATOR_ROLE_NAME = process.env.MODERATOR_ROLE_NAME || '𝘔𝘰𝘥𝘦𝘳𝘢𝘵𝘰𝘳';
 const DEFAULT_TRUSTED_SELLER_ROLE_NAME = process.env.TRUSTED_SELLER_ROLE_NAME || '𝐓𝐫𝐮𝐬𝐭𝐞𝐝𝐒𝐞𝐥𝐥𝐞𝐫';
 const DEFAULT_REACTION_ROLE_OPTIONS = [
@@ -280,16 +280,16 @@ const ACTIVITY_POINTS = {
 };
 
 const ACTIVITY_LABELS = {
-    join_server: 'Joins',
+    join_server: 'Beitritte',
     message_post: 'Nachrichten',
     teamup_post: 'Team-Ups',
-    sell_upload: 'Listings',
-    sale_completed: 'Sales',
+    sell_upload: 'Uploads',
+    sale_completed: 'Verkaeufe',
     favorite_saved: 'Favoriten',
-    offer_sent: 'Offers',
+    offer_sent: 'Angebote',
     mockup_upload: 'Mockups',
     mockup_like: 'Mockup-Likes',
-    mockup_report: 'Reports',
+    mockup_report: 'Meldungen',
     iso_post: 'ISO',
     outfit_upload: 'Fits',
     outfit_like: 'Fit-Likes'
@@ -485,7 +485,7 @@ function buildMonthlyActivityEmbeds(monthKey, sortedEntries) {
         .join('\n');
 
     const summaryEmbed = new EmbedBuilder()
-        .setTitle('Most Active Member')
+        .setTitle('Aktivstes Mitglied')
         .setDescription(
             `<@${winnerUserId}> war im ${formatMonthLabel(monthKey)} die aktivste Person auf dem Server.\n` +
             'Gewertet werden Uploads, Likes, Sales, Team-Ups und regelmaessige Chat-Aktivitaet.'
@@ -576,11 +576,11 @@ function buildCommunityCookedEmbeds(monthKey, topItems) {
             color: item.soldAt ? '#b78656' : '#d8cdbf',
             fields: [
                 { name: 'PREIS', value: item.price || 'Unbekannt', inline: true },
-                { name: 'SIZE', value: item.size || 'Unbekannt', inline: true },
-                { name: 'SELLER', value: `<@${item.sellerId}>`, inline: true },
+                { name: 'GROESSE', value: item.size || 'Unbekannt', inline: true },
+                { name: 'VERKAEUFER', value: `<@${item.sellerId}>`, inline: true },
                 { name: 'FAVORITEN', value: String(item.favoriteUserIds?.length || 0), inline: true },
-                { name: 'OFFERS', value: String(item.offerUserIds?.length || 0), inline: true },
-                { name: 'SCORE', value: String(getCommunityCookedScore(item)), inline: true }
+                { name: 'ANGEBOTE', value: String(item.offerUserIds?.length || 0), inline: true },
+                { name: 'PUNKTE', value: String(getCommunityCookedScore(item)), inline: true }
             ],
             footerText: `VELOO ARCHIVE // Item-ID: ${item.itemId}`
         });
@@ -602,7 +602,7 @@ function buildCommunityCookedRows(topItems) {
         .map((item, index) =>
             new ActionRowBuilder().addComponents(
                 new ButtonBuilder()
-                    .setLabel(`OPEN LOOK ${index + 1}`)
+                    .setLabel(`LOOK ${index + 1} OEFFNEN`)
                     .setStyle(ButtonStyle.Link)
                     .setURL(item.messageUrl)
             )
@@ -704,7 +704,7 @@ function buildBrandForwardPayload(message) {
     }
 
     const fallbackEmbed = new EmbedBuilder()
-        .setTitle('Latest Goods Alert')
+        .setTitle('Latest-Goods Hinweis')
         .setDescription(message.content || 'Neuer Post in latest-goods.')
         .setColor('#5865f2');
 
@@ -720,7 +720,7 @@ function buildBrandForwardPayload(message) {
             : [
                 new ActionRowBuilder().addComponents(
                     new ButtonBuilder()
-                        .setLabel('Open Original')
+                        .setLabel('Original oeffnen')
                         .setStyle(ButtonStyle.Link)
                         .setURL(message.url)
                 )
@@ -938,7 +938,7 @@ function getMemberDisplayName(member, user) {
 
 function buildVipHighlightField() {
     return {
-        name: 'VIP Perk',
+        name: 'VIP Vorteil',
         value: 'Dieser Post wurde mit VIP hervorgehoben.',
         inline: false
     };
@@ -1037,15 +1037,15 @@ function buildWelcomeComponents() {
     const guideRow = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
             .setCustomId('welcome_rules')
-            .setLabel('RULES')
+            .setLabel('REGELN')
             .setStyle(ButtonStyle.Secondary),
         new ButtonBuilder()
             .setCustomId('welcome_tutorials')
-            .setLabel('TUTORIALS')
+            .setLabel('ANLEITUNG')
             .setStyle(ButtonStyle.Secondary),
         new ButtonBuilder()
             .setCustomId('welcome_sell')
-            .setLabel('SELL')
+            .setLabel('VERKAUF')
             .setStyle(ButtonStyle.Primary),
         new ButtonBuilder()
             .setCustomId('welcome_mockup')
@@ -1124,7 +1124,7 @@ function buildWelcomeGuideText(topicKey) {
 function buildPanelInfoText(topicKey) {
     if (topicKey === 'sell_panel_info') {
         return (
-            'Sell Flow:\n' +
+            'Verkauf:\n' +
             '01. Daten eintragen\n' +
             '02. 1 Bild + `done`\n' +
             '03. Listing geht live'
@@ -1132,13 +1132,13 @@ function buildPanelInfoText(topicKey) {
     }
 
     if (topicKey === 'sell_panel_vip') {
-        return 'VIP Listings werden im Feed deutlich sichtbarer hervorgehoben und wirken premiumer als normale Posts.';
+        return 'VIP-Listings werden im Feed deutlich sichtbarer hervorgehoben und wirken premiumer als normale Posts.';
     }
 
     if (topicKey === 'team_panel_info') {
         return (
-            'Team-Up Flow:\n' +
-            '01. TEAM-UP klicken\n' +
+            'Team-Up:\n' +
+            '01. Team-Up klicken\n' +
             '02. Kurz beschreiben\n' +
             '03. Gesuch wird gepostet'
         );
@@ -1146,7 +1146,7 @@ function buildPanelInfoText(topicKey) {
 
     if (topicKey === 'mockup_panel_info') {
         return (
-            'Mockup Flow:\n' +
+            'Mockup:\n' +
             '01. Art + Name eintragen\n' +
             '02. 1 bis 3 Bilder + `done`\n' +
             '03. Voting 7 Tage'
@@ -1155,7 +1155,7 @@ function buildPanelInfoText(topicKey) {
 
     if (topicKey === 'outfit_panel_info') {
         return (
-            'Fit Flow:\n' +
+            'Fit:\n' +
             '01. Fit kurz eintragen\n' +
             '02. 1 Bild + `done`\n' +
             '03. Voting bis Mitternacht'
@@ -1164,8 +1164,8 @@ function buildPanelInfoText(topicKey) {
 
     if (topicKey === 'iso_panel_info') {
         return (
-            'ISO Flow:\n' +
-            '01. Piece, Size und Budget eintragen\n' +
+            'ISO:\n' +
+            '01. Piece, Groesse und Budget eintragen\n' +
             '02. Der Bot postet dein Gesuch direkt im ISO-Channel'
         );
     }
@@ -1191,7 +1191,7 @@ function buildMainChannelReply(topicKey) {
         return (
             'Wenn du eine Frage hast, schreib sie einfach direkt hier in den Chat.\n' +
             `Fuer Start und Infos schau auch in ${getChannelMention(RULES_CHANNEL_ID, 'den Regeln-Bereich')}, ` +
-            `${getChannelMention(TUTORIAL_CHANNEL_ID, 'den Tutorial-Bereich')} und ` +
+            `${getChannelMention(TUTORIAL_CHANNEL_ID, 'den Guide-Bereich')} und ` +
             `${getChannelMention(INFO_CHANNEL_ID, 'den Info-Bereich')}.`
         );
     }
@@ -1203,7 +1203,7 @@ function buildMainChannelReply(topicKey) {
             `${SECONDARY_TIKTOK_LABEL}: ${SECONDARY_TIKTOK_URL}\n` +
             `Instagram: ${INSTAGRAM_HANDLE} - ${INSTAGRAM_URL}\n` +
             `WhatsApp Channel: ${WHATSAPP_CHANNEL_URL}\n` +
-            `Business Mail: ${BUSINESS_EMAIL}`
+            `Business-Mail: ${BUSINESS_EMAIL}`
         );
     }
 
@@ -1219,7 +1219,7 @@ function buildMainChannelReply(topicKey) {
 
     if (topicKey === 'sell') {
         return (
-            `Wenn du ein Piece posten oder verkaufen willst, nutze ${getChannelMention(SELL_CHANNEL_ID, '`sell-your-piece`')}.\n` +
+            `Wenn du ein Piece posten oder verkaufen willst, nutze ${getChannelMention(SELL_CHANNEL_ID, '`verkauf`')}.\n` +
             'Dort klickst du auf das Panel und laedst danach dein Bild mit `done` hoch.'
         );
     }
@@ -1261,7 +1261,7 @@ function buildMainChannelReply(topicKey) {
     if (topicKey === 'vip') {
         return (
             `VIP lohnt sich, weil deine Posts extra hervorgehoben werden.\n` +
-            'VIP Listings, VIP Fits und VIP Mockups bekommen mehr Aufmerksamkeit im Feed.'
+            'VIP-Listings, VIP-Fits und VIP-Mockups bekommen mehr Aufmerksamkeit im Feed.'
         );
     }
 
@@ -1382,7 +1382,7 @@ function buildWelcomeEmbeds(member) {
                 inline: false
             },
             {
-                name: 'PANELS',
+                name: 'BEREICHE',
                 value:
                     `${getChannelMention(SELL_CHANNEL_ID, '`sell`')}\n` +
                     `${getChannelMention(MOCKUP_CHANNEL_ID, '`mockups`')}\n` +
@@ -1400,12 +1400,12 @@ function buildWelcomeEmbeds(member) {
                 inline: false
             }
         ],
-        footerText: 'VELOO ARCHIVE // WELCOME PANEL'
+        footerText: 'VELOO ARCHIVE // WILLKOMMEN'
     })
         .setThumbnail(member.user.displayAvatarURL());
 
     const guideEmbed = buildPanelEmbed({
-        title: 'HOW TO MOVE',
+        title: 'SO STARTEST DU',
         description: 'Regeln checken, Rollen waehlen, loslegen.',
         color: panelTheme.roles,
         fields: [
@@ -1415,12 +1415,12 @@ function buildWelcomeEmbeds(member) {
                 inline: false
             },
             {
-                name: 'HELP',
+                name: 'HILFE',
                 value: 'Fragen im Main-Channel oder einfach `mods` schreiben.',
                 inline: false
             }
         ],
-        footerText: 'VELOO ARCHIVE // START GUIDE'
+        footerText: 'VELOO ARCHIVE // STARTGUIDE'
     });
 
     return [welcomeEmbed, guideEmbed];
@@ -1457,18 +1457,18 @@ async function handleVipDeal(message) {
     const alertEmbed = EmbedBuilder.from(pieceData.embed)
         .setColor('#f1c40f')
         .setFooter({
-            text: `VIP Deal | ${pieceData.brand.toUpperCase()} | ${pieceData.currentPrice} EUR`
+            text: `VIP Hinweis | ${pieceData.brand.toUpperCase()} | ${pieceData.currentPrice} EUR`
         });
 
     const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
-            .setLabel('Open Piece')
+            .setLabel('Piece oeffnen')
             .setStyle(ButtonStyle.Link)
             .setURL(message.url)
     );
 
     await alertChannel.send({
-        content: `${vipMention} Brand deal detected: ${pieceData.brand} for ${pieceData.currentPrice} EUR`,
+        content: `${vipMention} Brand-Deal erkannt: ${pieceData.brand} fuer ${pieceData.currentPrice} EUR`,
         embeds: [alertEmbed],
         components: [row]
     });
@@ -1534,8 +1534,8 @@ function buildSoldComponentsFromMessage(message) {
             if (button.data?.custom_id) {
                 button.setDisabled(true);
 
-                if (button.data.custom_id.startsWith('sold_')) {
-                    button.setLabel('SOLD');
+            if (button.data.custom_id.startsWith('sold_')) {
+                    button.setLabel('VERKAUFT');
                 }
             }
 
@@ -1554,9 +1554,9 @@ function buildSoldEmbedsFromMessage(message) {
         if (index === 0) {
             const currentTitle = embed.title || 'Piece';
             const footerText = getEmbedFooterText(embed);
-            const titleWithSold = currentTitle.toUpperCase().includes('SOLD')
+            const titleWithSold = currentTitle.toUpperCase().includes('VERKAUFT')
                 ? currentTitle
-                : `SOLD | ${currentTitle}`;
+                : `VERKAUFT | ${currentTitle}`;
             const soldNotice = 'Dieses Piece wurde verkauft.';
             const existingDescription = embed.description || '';
 
@@ -1568,7 +1568,7 @@ function buildSoldEmbedsFromMessage(message) {
                         : [soldNotice, existingDescription].filter(Boolean).join('\n\n')
                 )
                 .setFooter({
-                    text: footerText.includes('SOLD') ? footerText : `${footerText} | SOLD`
+                    text: footerText.includes('VERKAUFT') ? footerText : `${footerText} | VERKAUFT`
                 });
         }
 
@@ -1581,7 +1581,7 @@ async function markMessageAsSold(message) {
     const soldComponents = buildSoldComponentsFromMessage(message);
 
     await message.edit({
-        content: '## SOLD\nDieses Piece ist verkauft.',
+        content: '## VERKAUFT\nDieses Piece ist verkauft.',
         embeds: soldEmbeds,
         components: soldComponents
     }).catch(() => {});
@@ -1628,7 +1628,7 @@ async function markTrackedItemCopiesAsSold(guild, itemId, clickedMessage) {
 }
 
 function normalizeListingTitle(title = '') {
-    return title.replace(/^(SOLD|RESERVED)\s*\|\s*/i, '').trim();
+    return title.replace(/^(SOLD|RESERVED|VERKAUFT|RESERVIERT)\s*\|\s*/i, '').trim();
 }
 
 function cleanListingDescription(description = '') {
@@ -1665,22 +1665,22 @@ function buildListingActionRow(itemId, sellerId, vintedUrl, status = 'active') {
             .setURL(vintedUrl),
         new ButtonBuilder()
             .setCustomId(`fav_${itemId}_${sellerId}`)
-            .setLabel('FAV')
+            .setLabel('FAVORIT')
             .setStyle(ButtonStyle.Secondary)
             .setDisabled(isReserved || isSold),
         new ButtonBuilder()
             .setCustomId(`offer_${itemId}_${sellerId}`)
-            .setLabel('OFFER')
+            .setLabel('ANGEBOT')
             .setStyle(ButtonStyle.Success)
             .setDisabled(isReserved || isSold),
         new ButtonBuilder()
             .setCustomId(`reserved_${itemId}_${sellerId}`)
-            .setLabel('RESERVED')
+            .setLabel('RESERVIERT')
             .setStyle(ButtonStyle.Secondary)
             .setDisabled(isReserved || isSold),
         new ButtonBuilder()
             .setCustomId(`sold_${itemId}_${sellerId}`)
-            .setLabel('SOLD')
+            .setLabel('VERKAUFT')
             .setStyle(ButtonStyle.Danger)
             .setDisabled(isSold)
     );
@@ -1695,16 +1695,16 @@ function buildListingEmbedsForStatus(message, status) {
             footerSuffix: ''
         },
         reserved: {
-            titlePrefix: 'RESERVED | ',
+            titlePrefix: 'RESERVIERT | ',
             descriptionPrefix: 'Dieses Piece ist gerade reserviert.',
             color: '#d6a24c',
-            footerSuffix: ' | RESERVED'
+            footerSuffix: ' | RESERVIERT'
         },
         sold: {
-            titlePrefix: 'SOLD | ',
+            titlePrefix: 'VERKAUFT | ',
             descriptionPrefix: 'Dieses Piece wurde verkauft.',
             color: '#e74c3c',
-            footerSuffix: ' | SOLD'
+            footerSuffix: ' | VERKAUFT'
         }
     }[status];
 
@@ -1718,7 +1718,7 @@ function buildListingEmbedsForStatus(message, status) {
         if (index === 0) {
             const baseTitle = normalizeListingTitle(embed.title || 'Piece');
             const baseDescription = cleanListingDescription(embed.description || '');
-            const footerText = getEmbedFooterText(embed).replace(/\s+\|\s+(SOLD|RESERVED)$/i, '');
+            const footerText = getEmbedFooterText(embed).replace(/\s+\|\s+(SOLD|RESERVED|VERKAUFT|RESERVIERT)$/i, '');
             const nextDescription = statusMeta.descriptionPrefix
                 ? [statusMeta.descriptionPrefix, baseDescription].filter(Boolean).join('\n\n')
                 : baseDescription;
@@ -1757,8 +1757,8 @@ async function applyListingStatusToMessage(message, listedItem, status) {
     }
 
     const contentByStatus = {
-        reserved: '## RESERVED\nDieses Piece ist gerade reserviert.',
-        sold: '## SOLD\nDieses Piece ist verkauft.'
+        reserved: '## RESERVIERT\nDieses Piece ist gerade reserviert.',
+        sold: '## VERKAUFT\nDieses Piece ist verkauft.'
     };
 
     await message.edit({
@@ -1951,14 +1951,14 @@ async function announceSale(sellerId) {
     const currentSaleNumber = previousSales + 1;
 
     const embed = new EmbedBuilder()
-        .setTitle('New Sale')
-        .setDescription(`<@${sellerId}> just sold their ${currentSaleNumber}${getOrdinalSuffix(currentSaleNumber)} piece!`)
+        .setTitle('Neuer Sale')
+        .setDescription(`<@${sellerId}> hat gerade sein ${currentSaleNumber}. Piece verkauft!`)
         .setColor('#2ecc71')
         .setFooter({ text: `Sale-User-ID: ${sellerId}` })
         .setTimestamp();
 
     await salesChannel.send({
-        content: `<@${sellerId}> just sold their ${currentSaleNumber}${getOrdinalSuffix(currentSaleNumber)} piece!`,
+        content: `<@${sellerId}> hat gerade sein ${currentSaleNumber}. Piece verkauft!`,
         embeds: [embed]
     });
 
@@ -2020,23 +2020,23 @@ async function sendSellPanel() {
         color: panelTheme.market,
         fields: [
             {
-                name: 'FLOW',
+                name: 'ABLAUF',
                 value: 'Modal -> 1 Bild + `done`',
                 inline: false
             },
             {
                 name: 'STATUS',
-                value: 'Fav, Offer, Reserved, Sold',
+                value: 'Favorit, Angebot, Reserviert, Verkauft',
                 inline: false
             }
         ],
-        footerText: 'VELOO ARCHIVE // MARKET PANEL'
+        footerText: 'VELOO ARCHIVE // MARKT'
     });
 
     const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
             .setCustomId('start_upload')
-            .setLabel('SELL')
+            .setLabel('VERKAUFEN')
             .setStyle(ButtonStyle.Primary),
         new ButtonBuilder()
             .setCustomId('sell_panel_info')
@@ -2070,18 +2070,18 @@ async function sendTeamPanel() {
         color: panelTheme.team,
         fields: [
             {
-                name: 'FLOW',
+                name: 'ABLAUF',
                 value: 'Button klicken -> Gesuch posten',
                 inline: false
             }
         ],
-        footerText: 'VELOO ARCHIVE // TEAM PANEL'
+        footerText: 'VELOO ARCHIVE // TEAMFINDER'
     });
 
     const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
             .setCustomId('start_teamup')
-            .setLabel('TEAM-UP')
+            .setLabel('TEAM SUCHEN')
             .setStyle(ButtonStyle.Success),
         new ButtonBuilder()
             .setCustomId('team_panel_info')
@@ -2107,7 +2107,7 @@ async function sendMockupPanel() {
         color: panelTheme.mockup,
         fields: [
             {
-                name: 'INPUT',
+                name: 'EINGABE',
                 value: 'Art + Name'
             },
             {
@@ -2115,13 +2115,13 @@ async function sendMockupPanel() {
                 value: '1 bis 3 Bilder + `done`'
             }
         ],
-        footerText: 'VELOO ARCHIVE // MOCKUP PANEL'
+        footerText: 'VELOO ARCHIVE // MOCKUP'
     });
 
     const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
             .setCustomId('start_mockup_upload')
-            .setLabel('SHARE')
+            .setLabel('TEILEN')
             .setStyle(ButtonStyle.Secondary),
         new ButtonBuilder()
             .setCustomId('mockup_panel_info')
@@ -2143,11 +2143,11 @@ async function sendOutfitPanel() {
 
     const embed = buildPanelEmbed({
         title: OUTFIT_PANEL_TITLE,
-        description: '1 Fit, 1 Bild, Daily Vote.',
+        description: '1 Fit, 1 Bild, Tagesvoting.',
         color: panelTheme.fit,
         fields: [
             {
-                name: 'INPUT',
+                name: 'EINGABE',
                 value: 'Kurze Fit-Beschreibung'
             },
             {
@@ -2155,7 +2155,7 @@ async function sendOutfitPanel() {
                 value: '1 Bild + `done`'
             }
         ],
-        footerText: 'VELOO ARCHIVE // FIT PANEL'
+        footerText: 'VELOO ARCHIVE // FIT'
     });
 
     const row = new ActionRowBuilder().addComponents(
@@ -2187,18 +2187,18 @@ async function sendIsoPanel() {
         color: panelTheme.iso,
         fields: [
             {
-                name: 'INPUT',
-                value: 'Piece, Size, Budget, Name',
+                name: 'EINGABE',
+                value: 'Piece, Groesse, Budget, Name',
                 inline: false
             }
         ],
-        footerText: 'VELOO ARCHIVE // ISO PANEL'
+        footerText: 'VELOO ARCHIVE // ISO'
     });
 
     const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
             .setCustomId('start_iso')
-            .setLabel('POST ISO')
+            .setLabel('ISO POSTEN')
             .setStyle(ButtonStyle.Primary),
         new ButtonBuilder()
             .setCustomId('iso_panel_info')
@@ -2225,19 +2225,19 @@ async function sendReactionRolePanelLegacy() {
         color: '#cfc6b8',
         fields: [
             {
-                name: 'ROLE PICK',
+                name: 'ROLLEN',
                 value:
                     'Vintage, VintageResell, Mockups, Fits und BrandMEMBER stehen dir direkt zur Auswahl.',
                 inline: false
             },
             {
-                name: 'AUTO ROLE',
+                name: 'AUTO-ROLLE',
                 value:
                     `${TRUSTED_SELLER_ROLE_NAME} wird automatisch vergeben, sobald du ${TRUSTED_SELLER_MIN_SALES} Sales erreicht hast.`,
                 inline: false
             }
         ],
-        footerText: 'VELOO&YESTERA // ROLE PANEL'
+        footerText: 'VELOO&YESTERA // ROLLEN'
     });
 
     await roleChannel.send({
@@ -2257,21 +2257,21 @@ async function sendReactionRolePanel() {
 
     const embed = buildPanelEmbed({
         title: ROLE_PANEL_TITLE,
-        description: 'Waehle deine Bereiche aus.',
+        description: 'Waehle deine Rollen aus.',
         color: panelTheme.roles,
         fields: [
             {
-                name: 'ROLE PICK',
+                name: 'ROLLEN',
                 value: 'Vintage, Resell, Mockups, Fits, BrandMEMBER',
                 inline: false
             },
             {
-                name: 'AUTO ROLE',
+                name: 'AUTO-ROLLE',
                 value: `${DEFAULT_TRUSTED_SELLER_ROLE_NAME} ab ${TRUSTED_SELLER_MIN_SALES} Sales.`,
                 inline: false
             }
         ],
-        footerText: 'VELOO&YESTERA // ROLE PANEL'
+        footerText: 'VELOO&YESTERA // ROLLEN'
     });
 
     await roleChannel.send({
@@ -2376,12 +2376,12 @@ function buildMockupActionRow(entryId, likeCount, likeDisabled = false, reportDi
     return new ActionRowBuilder().addComponents(
         new ButtonBuilder()
             .setCustomId(`mockup_like_${entryId}`)
-            .setLabel(`LIKE ${likeCount}`)
+            .setLabel(`LIKEN ${likeCount}`)
             .setStyle(ButtonStyle.Success)
             .setDisabled(likeDisabled),
         new ButtonBuilder()
             .setCustomId(`mockup_report_${entryId}`)
-            .setLabel('REPORT')
+            .setLabel('MELDEN')
             .setStyle(ButtonStyle.Danger)
             .setDisabled(reportDisabled)
     );
@@ -2406,7 +2406,7 @@ function buildMockupEmbeds(uploadData, author, entryId, imageFiles, voteEndsAt, 
     if (isVipCreator) {
         mainEmbed
             .setAuthor({
-                name: `VIP Creator • ${creatorName}`,
+                name: `VIP Mitglied • ${creatorName}`,
                 iconURL: author.displayAvatarURL()
             })
             .addFields(buildVipHighlightField());
@@ -2510,7 +2510,7 @@ async function buildWinnerEmbeds(submission) {
                     `<@${submission.userId}> gewinnt diese Woche mit ${submission.likes.length} Likes.\n\n` +
                     `Art: ${submission.garmentType}\nName: ${submission.submitterName}`
                 )
-                .setFooter({ text: `Winner | Mockup-ID: ${submission.entryId}` })
+                .setFooter({ text: `Gewinner | Mockup-ID: ${submission.entryId}` })
                 .setTimestamp();
         }
 
@@ -2545,7 +2545,7 @@ async function announceWeeklyMockupWinnerIfNeeded(referenceDate = new Date()) {
     const winnerEmbeds = await buildWinnerEmbeds(winner);
     const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
-            .setLabel('Open Winning Post')
+            .setLabel('Gewinnerpost oeffnen')
             .setStyle(ButtonStyle.Link)
             .setURL(winner.messageUrl)
     );
@@ -2638,7 +2638,7 @@ async function handleMockupReportSubmit(interaction, entryId) {
 
     if (interaction.user.id === submission.userId) {
         return replyToInteraction(interaction, {
-            content: 'Du kannst dein eigenes Mockup nicht reporten.',
+            content: 'Du kannst dein eigenes Mockup nicht melden.',
             ephemeral: true
         });
     }
@@ -2670,16 +2670,16 @@ async function handleMockupReportSubmit(interaction, entryId) {
     }
 
     const reportEmbed = new EmbedBuilder()
-        .setTitle('Mockup Report')
-        .setDescription('A community mockup was reported for review.')
+        .setTitle('Mockup Meldung')
+        .setDescription('Ein Community-Mockup wurde zur Pruefung gemeldet.')
         .addFields(
-            { name: 'Reported by', value: `<@${interaction.user.id}>`, inline: true },
-            { name: 'Created by', value: `<@${submission.userId}>`, inline: true },
-            { name: 'Entry ID', value: submission.entryId, inline: true },
+            { name: 'Gemeldet von', value: `<@${interaction.user.id}>`, inline: true },
+            { name: 'Erstellt von', value: `<@${submission.userId}>`, inline: true },
+            { name: 'Eintrag-ID', value: submission.entryId, inline: true },
             { name: 'Art', value: submission.garmentType, inline: true },
             { name: 'Name', value: submission.submitterName, inline: true },
-            { name: 'Reason', value: reason, inline: false },
-            { name: 'Original Post', value: submission.messageUrl, inline: false }
+            { name: 'Grund', value: reason, inline: false },
+            { name: 'Originalpost', value: submission.messageUrl, inline: false }
         )
         .setColor('#e74c3c')
         .setTimestamp();
@@ -2690,7 +2690,7 @@ async function handleMockupReportSubmit(interaction, entryId) {
 
     const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
-            .setLabel('Open Reported Post')
+            .setLabel('Gemeldeten Post oeffnen')
             .setStyle(ButtonStyle.Link)
             .setURL(submission.messageUrl)
     );
@@ -2718,7 +2718,7 @@ function buildOutfitActionRow(entryId, likeCount, likeDisabled = false) {
     return new ActionRowBuilder().addComponents(
         new ButtonBuilder()
             .setCustomId(`outfit_like_${entryId}`)
-            .setLabel(`LIKE ${likeCount}`)
+            .setLabel(`LIKEN ${likeCount}`)
             .setStyle(ButtonStyle.Success)
             .setDisabled(likeDisabled)
     );
@@ -2797,12 +2797,12 @@ function pickDailyOutfitWinner(submissions) {
 
 function buildOutfitWinnerFallbackEmbed(submission) {
     return new EmbedBuilder()
-        .setTitle(submission.isVipCreator ? 'VIP Daily Fit Winner' : 'Daily Fit Winner')
-        .setDescription(`<@${submission.userId}> hat den Daily Fit Win mit ${submission.likes.length} Likes geholt.`)
+        .setTitle(submission.isVipCreator ? 'VIP Tagesgewinner Fit' : 'Tagesgewinner Fit')
+        .setDescription(`<@${submission.userId}> hat den Tagesgewinn mit ${submission.likes.length} Likes geholt.`)
         .addFields(
             { name: 'Outfit', value: submission.fitDescription, inline: false },
             { name: 'Name', value: submission.submitterName, inline: true },
-            { name: 'Contest Day', value: submission.contestDateKey, inline: true }
+            { name: 'Tag', value: submission.contestDateKey, inline: true }
         )
         .setColor('#f1c40f')
         .setFooter({ text: `Outfit-ID: ${submission.entryId}` })
@@ -2825,9 +2825,9 @@ async function buildOutfitWinnerEmbeds(submission) {
 
         if (index === 0) {
             winnerEmbed
-                .setTitle('Daily Fit Winner')
+                .setTitle('Tagesgewinner Fit')
                 .setDescription(
-                    `<@${submission.userId}> hat den Daily Fit Win mit ${submission.likes.length} Likes geholt.\n\n` +
+                    `<@${submission.userId}> hat den Tagesgewinn mit ${submission.likes.length} Likes geholt.\n\n` +
                     `Outfit: ${submission.fitDescription}\nName: ${submission.submitterName}`
                 )
                 .setTimestamp();
@@ -2864,7 +2864,7 @@ async function announceDailyOutfitWinnerIfNeeded(referenceDate = new Date()) {
     const winnerEmbeds = await buildOutfitWinnerEmbeds(winner);
     const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
-            .setLabel('Open Winning Fit')
+            .setLabel('Gewinnerfit oeffnen')
             .setStyle(ButtonStyle.Link)
             .setURL(winner.messageUrl)
     );
@@ -3065,7 +3065,7 @@ async function handleSellUploadMessage(message, uploadData) {
     if (content !== 'done' || imageAttachments.length !== 1 || message.attachments.size !== 1) {
         await sendTempMessage(
             message.channel,
-            `<@${message.author.id}> please send exactly one message with one image attached and the text **done**.`,
+            `<@${message.author.id}> bitte sende genau eine Nachricht mit 1 Bild und dem Text **done**.`,
             6000
         );
         return;
@@ -3077,7 +3077,7 @@ async function handleSellUploadMessage(message, uploadData) {
     if (imageFiles.length !== 1) {
         await sendTempMessage(
             message.channel,
-            `<@${message.author.id}> your image could not be processed. Please try again with **image + done** in one message.`,
+            `<@${message.author.id}> dein Bild konnte nicht verarbeitet werden. Bitte versuche es nochmal mit **1 Bild + done**.`,
             7000
         );
         return;
@@ -3090,9 +3090,9 @@ async function handleSellUploadMessage(message, uploadData) {
     const embed = new EmbedBuilder()
         .setTitle(`${isVipSeller ? 'VIP ' : ''}${uploadData.brand} ${uploadData.title}`.trim())
         .addFields(
-            { name: 'Price', value: uploadData.price, inline: true },
-            { name: 'Size', value: uploadData.size, inline: true },
-            { name: 'Seller', value: `<@${message.author.id}>`, inline: true }
+            { name: 'Preis', value: uploadData.price, inline: true },
+            { name: 'Groesse', value: uploadData.size, inline: true },
+            { name: 'Verkaeufer', value: `<@${message.author.id}>`, inline: true }
         )
         .setColor(isVipSeller ? '#f1c40f' : '#ffffff')
         .setFooter({ text: `Item-ID: ${itemId}` })
@@ -3101,7 +3101,7 @@ async function handleSellUploadMessage(message, uploadData) {
     if (isVipSeller) {
         embed
             .setAuthor({
-                name: `VIP Seller • ${creatorName}`,
+                name: `VIP Verkaeufer • ${creatorName}`,
                 iconURL: message.author.displayAvatarURL()
             })
             .setDescription('Prioritaets-Listing aus dem VIP-Bereich.')
@@ -3112,12 +3112,12 @@ async function handleSellUploadMessage(message, uploadData) {
 
     const channel = await client.channels.fetch(SELL_CHANNEL_ID).catch(() => null);
     if (!channel) {
-        await sendTempMessage(message.channel, 'The sell channel could not be reached.', 7000);
+        await sendTempMessage(message.channel, 'Der Verkaufs-Channel konnte nicht erreicht werden.', 7000);
         return;
     }
 
     const sentMessage = await channel.send({
-        content: isVipSeller ? '👑 VIP LISTING • extra hervorgehoben' : undefined,
+        content: isVipSeller ? 'VIP-LISTING • extra hervorgehoben' : undefined,
         embeds: [embed],
         components: [row],
         files: imageFiles
@@ -3164,7 +3164,7 @@ async function handleMockupUploadMessage(message, uploadData) {
     ) {
         await sendTempMessage(
             message.channel,
-            `<@${message.author.id}> please send exactly one message with 1 to 3 images and the text **done**.`,
+            `<@${message.author.id}> bitte sende genau eine Nachricht mit 1 bis 3 Bildern und dem Text **done**.`,
             7000
         );
         return;
@@ -3176,7 +3176,7 @@ async function handleMockupUploadMessage(message, uploadData) {
     if (imageFiles.length !== imageAttachments.length) {
         await sendTempMessage(
             message.channel,
-            `<@${message.author.id}> your mockup images could not be processed. Please try again with 1 to 3 images and **done**.`,
+            `<@${message.author.id}> deine Mockup-Bilder konnten nicht verarbeitet werden. Bitte versuche es nochmal mit **1 bis 3 Bildern + done**.`,
             7000
         );
         return;
@@ -3191,7 +3191,7 @@ async function handleMockupUploadMessage(message, uploadData) {
 
     const channel = await client.channels.fetch(MOCKUP_CHANNEL_ID).catch(() => null);
     if (!channel) {
-        await sendTempMessage(message.channel, 'The mockup channel could not be reached.', 7000);
+        await sendTempMessage(message.channel, 'Der Mockup-Channel konnte nicht erreicht werden.', 7000);
         return;
     }
 
@@ -3227,7 +3227,7 @@ async function handleMockupUploadMessage(message, uploadData) {
 
     await sendTempMessage(
         message.channel,
-        `<@${message.author.id}> your mockup is live and can now be liked for 7 days.`,
+        `<@${message.author.id}> dein Mockup ist live und kann jetzt 7 Tage lang gelikt werden.`,
         5000
     );
 }
@@ -3317,7 +3317,7 @@ client.on('guildMemberAdd', async member => {
     const welcomeEmbeds = buildWelcomeEmbeds(member);
 
     await member.send({
-        content: `Willkommen auf ${member.guild.name}. Hier ist dein Start-Guide.`,
+        content: `Willkommen auf ${member.guild.name}. Hier ist dein Startguide.`,
         embeds: welcomeEmbeds,
         components: buildWelcomeComponents()
     }).catch(error => {
@@ -3490,33 +3490,33 @@ client.on('interactionCreate', async interaction => {
             if (interaction.customId === 'start_upload') {
                 const modal = new ModalBuilder()
                     .setCustomId('upload_modal')
-                    .setTitle('Piece Details');
+                    .setTitle('Piece-Details');
 
                 const pieceInput = new TextInputBuilder()
                     .setCustomId('title')
                     .setLabel('Piece')
-                    .setPlaceholder('e.g. Nike Hoodie')
+                    .setPlaceholder('z.B. Nike Hoodie')
                     .setStyle(TextInputStyle.Short)
                     .setRequired(true);
 
                 const brandInput = new TextInputBuilder()
                     .setCustomId('brand')
-                    .setLabel('Brand')
-                    .setPlaceholder('e.g. Nike')
+                    .setLabel('Marke')
+                    .setPlaceholder('z.B. Nike')
                     .setStyle(TextInputStyle.Short)
                     .setRequired(true);
 
                 const priceInput = new TextInputBuilder()
                     .setCustomId('price')
-                    .setLabel('Price')
-                    .setPlaceholder('e.g. 12 EUR')
+                    .setLabel('Preis')
+                    .setPlaceholder('z.B. 12 EUR')
                     .setStyle(TextInputStyle.Short)
                     .setRequired(true);
 
                 const sizeInput = new TextInputBuilder()
                     .setCustomId('size')
-                    .setLabel('Size')
-                    .setPlaceholder('e.g. M / 38 / One Size')
+                    .setLabel('Groesse')
+                    .setPlaceholder('z.B. M / 38 / One Size')
                     .setStyle(TextInputStyle.Short)
                     .setRequired(true);
 
@@ -3541,12 +3541,12 @@ client.on('interactionCreate', async interaction => {
             if (interaction.customId === 'start_teamup') {
                 const modal = new ModalBuilder()
                     .setCustomId('team_modal')
-                    .setTitle('Find a Team');
+                    .setTitle('Team finden');
 
                 const descInput = new TextInputBuilder()
                     .setCustomId('desc')
-                    .setLabel('What are you looking for?')
-                    .setPlaceholder('e.g. Looking for someone for a 50/50 resell project in Berlin...')
+                    .setLabel('Wonach suchst du?')
+                    .setPlaceholder('z.B. Suche jemanden fuer ein 50/50 Resell-Projekt in Berlin...')
                     .setStyle(TextInputStyle.Paragraph)
                     .setRequired(true);
 
@@ -3584,7 +3584,7 @@ client.on('interactionCreate', async interaction => {
             if (interaction.customId === 'start_outfit_upload') {
                 const modal = new ModalBuilder()
                     .setCustomId('outfit_modal')
-                    .setTitle('Post Your Fit');
+                    .setTitle('Poste deinen Fit');
 
                 const fitDescriptionInput = new TextInputBuilder()
                     .setCustomId('fit_description')
@@ -3611,7 +3611,7 @@ client.on('interactionCreate', async interaction => {
             if (interaction.customId === 'start_iso') {
                 const modal = new ModalBuilder()
                     .setCustomId('iso_modal')
-                    .setTitle('ISO / Looking For');
+                    .setTitle('Suche / ISO');
 
                 const pieceInput = new TextInputBuilder()
                     .setCustomId('iso_piece')
@@ -3622,7 +3622,7 @@ client.on('interactionCreate', async interaction => {
 
                 const sizeInput = new TextInputBuilder()
                     .setCustomId('iso_size')
-                    .setLabel('Size')
+                    .setLabel('Groesse')
                     .setPlaceholder('z.B. M / L / 32 / One Size')
                     .setStyle(TextInputStyle.Short)
                     .setRequired(true);
@@ -3688,7 +3688,7 @@ client.on('interactionCreate', async interaction => {
             if (action === 'reserved') {
                 if (interaction.user.id !== sellerId) {
                     return replyToInteraction(interaction, {
-                        content: 'Only the seller can do that.',
+                        content: 'Das kann nur der Verkaeufer machen.',
                         ephemeral: true
                     });
                 }
@@ -3703,7 +3703,7 @@ client.on('interactionCreate', async interaction => {
 
                 if (listedItem?.reservedAt) {
                     return replyToInteraction(interaction, {
-                        content: 'Dieses Piece ist bereits als reserved markiert.',
+                        content: 'Dieses Piece ist bereits als reserviert markiert.',
                         ephemeral: true
                     });
                 }
@@ -3716,7 +3716,7 @@ client.on('interactionCreate', async interaction => {
                 }
 
                 return replyToInteraction(interaction, {
-                    content: 'Piece wurde als RESERVED markiert.',
+                    content: 'Piece wurde als RESERVIERT markiert.',
                     ephemeral: true
                 });
             }
@@ -3724,7 +3724,7 @@ client.on('interactionCreate', async interaction => {
             if (action === 'sold') {
                 if (interaction.user.id !== sellerId) {
                     return replyToInteraction(interaction, {
-                        content: 'Only the seller can do that.',
+                        content: 'Das kann nur der Verkaeufer machen.',
                         ephemeral: true
                     });
                 }
@@ -3782,7 +3782,7 @@ client.on('interactionCreate', async interaction => {
                 });
 
                 return replyToInteraction(interaction, {
-                    content: 'Piece wurde als SOLD markiert und der Sale wurde gezaehlt.',
+                    content: 'Piece wurde als VERKAUFT markiert und der Sale wurde gezaehlt.',
                     ephemeral: true
                 });
             }
@@ -3790,7 +3790,7 @@ client.on('interactionCreate', async interaction => {
             if (action === 'fav') {
                 if (interaction.user.id === sellerId) {
                     return replyToInteraction(interaction, {
-                        content: 'You cannot favorite your own piece.',
+                        content: 'Du kannst dein eigenes Piece nicht favorisieren.',
                         ephemeral: true
                     });
                 }
@@ -3819,7 +3819,7 @@ client.on('interactionCreate', async interaction => {
 
                 if (alreadySaved) {
                     return replyToInteraction(interaction, {
-                        content: 'This piece is already in your favorites.',
+                        content: 'Dieses Piece ist bereits in deinen Favoriten.',
                         ephemeral: true
                     });
                 }
@@ -3829,13 +3829,13 @@ client.on('interactionCreate', async interaction => {
 
                 const favoriteRow = new ActionRowBuilder().addComponents(
                     new ButtonBuilder()
-                        .setLabel('Open Original')
+                        .setLabel('Original oeffnen')
                         .setStyle(ButtonStyle.Link)
                         .setURL(interaction.message.url)
                 );
 
                 await favoriteChannel.send({
-                    content: 'You saved this piece:',
+                    content: 'Du hast dieses Piece gespeichert:',
                     embeds: [originalEmbed],
                     components: [favoriteRow]
                 });
@@ -3850,7 +3850,7 @@ client.on('interactionCreate', async interaction => {
                 });
 
                 return replyToInteraction(interaction, {
-                    content: 'Saved to your favorites.',
+                    content: 'In deinen Favoriten gespeichert.',
                     ephemeral: true
                 });
             }
@@ -3858,21 +3858,21 @@ client.on('interactionCreate', async interaction => {
             if (action === 'offer') {
                 if (interaction.user.id === sellerId) {
                     return replyToInteraction(interaction, {
-                        content: 'You cannot make an offer to yourself.',
+                        content: 'Du kannst dir selbst kein Angebot senden.',
                         ephemeral: true
                     });
                 }
 
                 const modal = new ModalBuilder()
                     .setCustomId(`moffer_${itemId}_${sellerId}`)
-                    .setTitle('Send Offer');
+                    .setTitle('Angebot senden');
 
                 modal.addComponents(
                     new ActionRowBuilder().addComponents(
                         new TextInputBuilder()
                             .setCustomId('oprice')
-                            .setLabel('Your price offer')
-                            .setPlaceholder('e.g. 10 EUR')
+                            .setLabel('Dein Preisangebot')
+                            .setPlaceholder('z.B. 10 EUR')
                             .setStyle(TextInputStyle.Short)
                             .setRequired(true)
                     )
@@ -3895,14 +3895,14 @@ client.on('interactionCreate', async interaction => {
                 });
 
                 return replyToInteraction(interaction, {
-                    content: 'Now send exactly one message with your image attached and the text `done`. That message will be deleted automatically afterwards.',
+                    content: 'Sende jetzt genau eine Nachricht mit 1 Bild und dem Text `done`. Diese Nachricht wird danach automatisch geloescht.',
                     ephemeral: true
                 });
             }
 
             if (interaction.customId === 'team_modal') {
                 const embed = new EmbedBuilder()
-                    .setTitle('TEAM-UP REQUEST')
+                    .setTitle('TEAM-UP GESUCH')
                     .setDescription(interaction.fields.getTextInputValue('desc'))
                     .setAuthor({
                         name: interaction.user.username,
@@ -3916,7 +3916,7 @@ client.on('interactionCreate', async interaction => {
                     displayName: getMemberDisplayName(interaction.member, interaction.user)
                 });
                 return replyToInteraction(interaction, {
-                    content: 'Your request has been posted.',
+                    content: 'Dein Gesuch wurde gepostet.',
                     ephemeral: true
                 });
             }
@@ -3954,10 +3954,10 @@ client.on('interactionCreate', async interaction => {
                 const creatorName = getMemberDisplayName(interaction.member, interaction.user);
 
                 const embed = new EmbedBuilder()
-                    .setTitle(isVipMember ? 'VIP ISO' : 'ISO / Looking For')
+                    .setTitle(isVipMember ? 'VIP ISO' : 'Suche / ISO')
                     .setDescription(interaction.fields.getTextInputValue('iso_piece'))
                     .addFields(
-                        { name: 'Size', value: interaction.fields.getTextInputValue('iso_size'), inline: true },
+                        { name: 'Groesse', value: interaction.fields.getTextInputValue('iso_size'), inline: true },
                         { name: 'Budget', value: interaction.fields.getTextInputValue('iso_budget'), inline: true },
                         { name: 'Name', value: interaction.fields.getTextInputValue('iso_name'), inline: true },
                         { name: 'Von', value: `<@${interaction.user.id}>`, inline: true }
@@ -3994,14 +3994,14 @@ client.on('interactionCreate', async interaction => {
 
                 if (!itemId || !sellerId) {
                     return replyToInteraction(interaction, {
-                        content: 'The offer could not be processed.',
+                        content: 'Das Angebot konnte nicht verarbeitet werden.',
                         ephemeral: true
                     });
                 }
 
                 if (interaction.user.id === sellerId) {
                     return replyToInteraction(interaction, {
-                        content: 'You cannot make an offer to yourself.',
+                        content: 'Du kannst dir selbst kein Angebot senden.',
                         ephemeral: true
                     });
                 }
@@ -4011,17 +4011,17 @@ client.on('interactionCreate', async interaction => {
 
                 if (!seller) {
                     return replyToInteraction(interaction, {
-                        content: 'The seller could not be found.',
+                        content: 'Der Verkaeufer konnte nicht gefunden werden.',
                         ephemeral: true
                     });
                 }
 
                 const offerEmbed = new EmbedBuilder()
-                    .setTitle('New Offer')
+                    .setTitle('Neues Angebot')
                     .addFields(
-                        { name: 'Item ID', value: itemId, inline: true },
-                        { name: 'Offer', value: offerPrice, inline: true },
-                        { name: 'From', value: `<@${interaction.user.id}>`, inline: true }
+                        { name: 'Item-ID', value: itemId, inline: true },
+                        { name: 'Angebot', value: offerPrice, inline: true },
+                        { name: 'Von', value: `<@${interaction.user.id}>`, inline: true }
                     )
                     .setColor('#27ae60')
                     .setTimestamp();
@@ -4037,13 +4037,13 @@ client.on('interactionCreate', async interaction => {
                         displayName: getMemberDisplayName(interaction.member, interaction.user)
                     });
                     return replyToInteraction(interaction, {
-                        content: 'Your offer has been sent to the seller.',
+                        content: 'Dein Angebot wurde an den Verkaeufer gesendet.',
                         ephemeral: true
                     });
                 } catch (error) {
                     console.error('Error sending offer:', error.message);
                     return replyToInteraction(interaction, {
-                        content: 'I could not send a DM to the seller.',
+                        content: 'Ich konnte dem Verkaeufer keine DM senden.',
                         ephemeral: true
                     });
                 }
@@ -4052,7 +4052,7 @@ client.on('interactionCreate', async interaction => {
     } catch (error) {
         console.error('Interaction handler failed:', error.message);
         await replyToInteraction(interaction, {
-            content: 'Something went wrong while handling that action.',
+            content: 'Beim Verarbeiten dieser Aktion ist etwas schiefgelaufen.',
             ephemeral: true
         });
     }
