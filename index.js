@@ -53,6 +53,8 @@ const MOCKUP_WEEKLY_CRON = process.env.MOCKUP_WEEKLY_CRON || '0 0 * * 1';
 const OUTFIT_CHANNEL_ID = process.env.OUTFIT_CHANNEL_ID || '1500934646265810965';
 const OUTFIT_PANEL_TITLE = 'POST YOUR FIT';
 const OUTFIT_DAILY_CRON = process.env.OUTFIT_DAILY_CRON || '0 0 * * *';
+const ISO_CHANNEL_ID = process.env.ISO_CHANNEL_ID || '1492913251577626724';
+const ISO_PANEL_TITLE = 'LOOKING FOR / ISO';
 const MONTHLY_ACTIVITY_CHANNEL_ID = process.env.MONTHLY_ACTIVITY_CHANNEL_ID || '1500944487357223092';
 const MONTHLY_ACTIVITY_CRON = process.env.MONTHLY_ACTIVITY_CRON || '0 0 1 * *';
 const COMMUNITY_COOKED_CHANNEL_ID = process.env.COMMUNITY_COOKED_CHANNEL_ID || '1501207095092183201';
@@ -72,10 +74,46 @@ const MAIN_REPLY_COOLDOWN_MS = Number(process.env.MAIN_REPLY_COOLDOWN_MS || 3000
 const TRUSTED_SELLER_ROLE_ID = process.env.TRUSTED_SELLER_ROLE_ID || null;
 const TRUSTED_SELLER_ROLE_NAME = process.env.TRUSTED_SELLER_ROLE_NAME || '𝐓𝐫𝐮𝐬𝐭𝐞𝐝𝐒𝐞𝐥𝐥𝐞𝐫';
 const TRUSTED_SELLER_MIN_SALES = Number(process.env.TRUSTED_SELLER_MIN_SALES || 5);
+const EFFECTIVE_MODERATOR_ROLE_NAME = process.env.MODERATOR_ROLE_NAME || '𝘔𝘰𝘥𝘦𝘳𝘢𝘵𝘰𝘳';
+const EFFECTIVE_TRUSTED_SELLER_ROLE_NAME = process.env.TRUSTED_SELLER_ROLE_NAME || '𝐓𝐫𝐮𝐬𝐭𝐞𝐝𝐒𝐞𝐥𝐥𝐞𝐫';
 const SELL_PANEL_TITLE = 'VELOO ARCHIVE / MARKET';
 const TEAM_PANEL_TITLE = 'VELOO ARCHIVE / TEAM-UP';
 const WELCOME_PANEL_TITLE = 'WELCOME TO VELOO ARCHIVE';
 const ROLE_PANEL_TITLE = 'VELOO&YESTERA / ROLES';
+const DEFAULT_MODERATOR_ROLE_NAME = process.env.MODERATOR_ROLE_NAME || '𝘔𝘰𝘥𝘦𝘳𝘢𝘵𝘰𝘳';
+const DEFAULT_TRUSTED_SELLER_ROLE_NAME = process.env.TRUSTED_SELLER_ROLE_NAME || '𝐓𝐫𝐮𝐬𝐭𝐞𝐝𝐒𝐞𝐥𝐥𝐞𝐫';
+const DEFAULT_REACTION_ROLE_OPTIONS = [
+    {
+        value: 'role_vintage',
+        roleName: '𝑽𝒊𝒏𝒕𝒂𝒈𝒆',
+        label: 'Vintage',
+        description: 'Fuer Vintage Content'
+    },
+    {
+        value: 'role_vintage_resell',
+        roleName: '𝑽𝒊𝒏𝒕𝒂𝒈𝒆𝑹𝒆𝒔𝒆𝒍𝒍',
+        label: 'VintageResell',
+        description: 'Fuer Sales und Resell'
+    },
+    {
+        value: 'role_mockups',
+        roleName: '𝑴𝒐𝒄𝒌𝒖𝒑𝒔',
+        label: 'Mockups',
+        description: 'Fuer Design-Ideen'
+    },
+    {
+        value: 'role_fits',
+        roleName: '𝑭𝒊𝒕𝒔',
+        label: 'Fits',
+        description: 'Fuer Fit-Posts'
+    },
+    {
+        value: 'role_brand_member',
+        roleName: '𝑩𝒓𝒂𝒏𝒅𝑴𝑬𝑴𝑩𝑬𝑹',
+        label: 'BrandMEMBER',
+        description: 'Fuer Brand Updates'
+    }
+];
 
 // TODO: Add restock / repost reminder flow.
 
@@ -151,6 +189,39 @@ const REACTION_ROLE_OPTIONS = [
     }
 ];
 
+const EFFECTIVE_REACTION_ROLE_OPTIONS = [
+    {
+        value: 'role_vintage',
+        roleName: '𝑽𝒊𝒏𝒕𝒂𝒈𝒆',
+        label: 'Vintage',
+        description: 'Fuer Vintage Content'
+    },
+    {
+        value: 'role_vintage_resell',
+        roleName: '𝑽𝒊𝒏𝒕𝒂𝒈𝒆𝑹𝒆𝒔𝒆𝒍𝒍',
+        label: 'VintageResell',
+        description: 'Fuer Sales und Resell'
+    },
+    {
+        value: 'role_mockups',
+        roleName: '𝑴𝒐𝒄𝒌𝒖𝒑𝒔',
+        label: 'Mockups',
+        description: 'Fuer Design-Ideen'
+    },
+    {
+        value: 'role_fits',
+        roleName: '𝑭𝒊𝒕𝒔',
+        label: 'Fits',
+        description: 'Fuer Fit-Posts'
+    },
+    {
+        value: 'role_brand_member',
+        roleName: '𝑩𝒓𝒂𝒏𝒅𝑴𝑬𝑴𝑩𝑬𝑹',
+        label: 'BrandMEMBER',
+        description: 'Fuer Brand Updates'
+    }
+];
+
 const ITEM_MIRROR_CHANNEL_IDS = [...new Set([
     SELL_CHANNEL_ID,
     ...BRAND_CHANNEL_CONFIGS.map(config => config.channelId)
@@ -203,6 +274,7 @@ const ACTIVITY_POINTS = {
     mockup_upload: 4,
     mockup_like: 1,
     mockup_report: 1,
+    iso_post: 2,
     outfit_upload: 4,
     outfit_like: 1
 };
@@ -218,6 +290,7 @@ const ACTIVITY_LABELS = {
     mockup_upload: 'Mockups',
     mockup_like: 'Mockup-Likes',
     mockup_report: 'Reports',
+    iso_post: 'ISO',
     outfit_upload: 'Fits',
     outfit_like: 'Fit-Likes'
 };
@@ -443,6 +516,10 @@ function getListedItem(itemId) {
 
     if (!Array.isArray(listedItem.offerUserIds)) {
         listedItem.offerUserIds = [];
+    }
+
+    if (typeof listedItem.reservedAt === 'undefined') {
+        listedItem.reservedAt = null;
     }
 
     return listedItem;
@@ -791,12 +868,12 @@ async function resolveModeratorMention(guild) {
         return `<@&${MODERATOR_ROLE_ID}>`;
     }
 
-    const roleByName = guild.roles.cache.find(role => role.name === MODERATOR_ROLE_NAME);
+    const roleByName = guild.roles.cache.find(role => role.name === DEFAULT_MODERATOR_ROLE_NAME);
     if (roleByName) {
         return `<@&${roleByName.id}>`;
     }
 
-    return `@${MODERATOR_ROLE_NAME}`;
+    return `@${DEFAULT_MODERATOR_ROLE_NAME}`;
 }
 
 function findRoleByIdOrName(guild, roleId, roleName) {
@@ -812,7 +889,7 @@ function findRoleByIdOrName(guild, roleId, roleName) {
 }
 
 function getReactionRoleConfigs() {
-    return REACTION_ROLE_OPTIONS.map(option => ({
+    return DEFAULT_REACTION_ROLE_OPTIONS.map(option => ({
         ...option,
         roleId: process.env[`REACTION_ROLE_ID_${option.value.toUpperCase()}`] || null
     }));
@@ -823,9 +900,9 @@ function buildReactionRoleSelectMenu() {
         .setCustomId('reaction_roles_select')
         .setPlaceholder('Wähle deine Rollen aus')
         .setMinValues(0)
-        .setMaxValues(REACTION_ROLE_OPTIONS.length)
+        .setMaxValues(DEFAULT_REACTION_ROLE_OPTIONS.length)
         .addOptions(
-            REACTION_ROLE_OPTIONS.map(option => ({
+            DEFAULT_REACTION_ROLE_OPTIONS.map(option => ({
                 label: option.label,
                 description: option.description,
                 value: option.value
@@ -875,6 +952,70 @@ function buildInfoReplyPayload(interaction, content) {
     }
 
     return payload;
+}
+
+function getBerlinHour(date = new Date()) {
+    return Number(
+        new Intl.DateTimeFormat('en-GB', {
+            timeZone: TIMEZONE,
+            hour: '2-digit',
+            hour12: false
+        }).format(date)
+    );
+}
+
+function getCurrentPanelTheme(date = new Date()) {
+    const hour = getBerlinHour(date);
+
+    if (hour >= 5 && hour < 11) {
+        return {
+            mode: 'morning',
+            market: '#d6c3a5',
+            team: '#b9c7b0',
+            mockup: '#c9b299',
+            fit: '#aebbc7',
+            roles: '#d3cec4',
+            iso: '#c7b8aa',
+            welcome: '#d7d0c4'
+        };
+    }
+
+    if (hour >= 11 && hour < 17) {
+        return {
+            mode: 'day',
+            market: '#e1d6c6',
+            team: '#c6d1c2',
+            mockup: '#d8c0a8',
+            fit: '#bac6d2',
+            roles: '#ddd7ce',
+            iso: '#d1c3b7',
+            welcome: '#e0dad1'
+        };
+    }
+
+    if (hour >= 17 && hour < 22) {
+        return {
+            mode: 'dusk',
+            market: '#b78f65',
+            team: '#8fa286',
+            mockup: '#a98669',
+            fit: '#7f91a6',
+            roles: '#b3a692',
+            iso: '#a88b76',
+            welcome: '#b9ab98'
+        };
+    }
+
+    return {
+        mode: 'night',
+        market: '#5b6673',
+        team: '#546057',
+        mockup: '#66594e',
+        fit: '#4f5e70',
+        roles: '#67635f',
+        iso: '#62564e',
+        welcome: '#5e5b58'
+    };
 }
 
 function buildPanelEmbed({ title, description, color, fields = [], footerText }) {
@@ -984,10 +1125,9 @@ function buildPanelInfoText(topicKey) {
     if (topicKey === 'sell_panel_info') {
         return (
             'Sell Flow:\n' +
-            '01. SELL PIECE klicken\n' +
-            '02. Piece, Brand, Price, Size und Vinted-Link eintragen\n' +
-            '03. Genau 1 Bild mit `done` senden\n' +
-            '04. Der Bot postet dein Listing interaktiv mit Fav, Offer und SOLD'
+            '01. Daten eintragen\n' +
+            '02. 1 Bild + `done`\n' +
+            '03. Listing geht live'
         );
     }
 
@@ -999,28 +1139,34 @@ function buildPanelInfoText(topicKey) {
         return (
             'Team-Up Flow:\n' +
             '01. TEAM-UP klicken\n' +
-            '02. Kurz beschreiben, was du suchst\n' +
-            '03. Der Bot postet dein Gesuch fuer die Community sichtbar im Team-Bereich'
+            '02. Kurz beschreiben\n' +
+            '03. Gesuch wird gepostet'
         );
     }
 
     if (topicKey === 'mockup_panel_info') {
         return (
             'Mockup Flow:\n' +
-            '01. MOCKUP TEILEN klicken\n' +
-            '02. Kleidung oder Accessoire und deinen Namen eintragen\n' +
-            '03. Danach 1 bis 3 Bilder mit `done` senden\n' +
-            '04. Das Voting bleibt 7 Tage offen'
+            '01. Art + Name eintragen\n' +
+            '02. 1 bis 3 Bilder + `done`\n' +
+            '03. Voting 7 Tage'
         );
     }
 
     if (topicKey === 'outfit_panel_info') {
         return (
             'Fit Flow:\n' +
-            '01. FIT POSTEN klicken\n' +
-            '02. Deinen Fit kurz beschreiben und Namen eintragen\n' +
-            '03. Danach genau 1 Bild mit `done` senden\n' +
-            '04. Likes zaehlen bis Mitternacht'
+            '01. Fit kurz eintragen\n' +
+            '02. 1 Bild + `done`\n' +
+            '03. Voting bis Mitternacht'
+        );
+    }
+
+    if (topicKey === 'iso_panel_info') {
+        return (
+            'ISO Flow:\n' +
+            '01. Piece, Size und Budget eintragen\n' +
+            '02. Der Bot postet dein Gesuch direkt im ISO-Channel'
         );
     }
 
@@ -1096,6 +1242,13 @@ function buildMainChannelReply(topicKey) {
         return (
             `Deinen Fit kannst du in ${getChannelMention(OUTFIT_CHANNEL_ID, '`fits`')} posten.\n` +
             'Dort gibt es das Daily Voting und jeden Tag einen Gewinner.'
+        );
+    }
+
+    if (topicKey === 'iso') {
+        return (
+            `Gesuche postest du in ${getChannelMention(ISO_CHANNEL_ID, '`iso`')}.\n` +
+            'Dort kannst du direkt eintragen, wonach du suchst.'
         );
     }
 
@@ -1177,6 +1330,10 @@ async function handleMainChannelAutoReply(message) {
             keywords: ['fit posten', 'outfit', 'fit', 'daily win']
         },
         {
+            key: 'iso',
+            keywords: ['iso', 'looking for', 'suche', 'gesuch', 'searching for', 'wtb']
+        },
+        {
             key: 'team',
             keywords: ['team', 'partner', 'projekt', 'project', 'team up', 'team-up']
         },
@@ -1209,29 +1366,29 @@ async function handleMainChannelAutoReply(message) {
 
 function buildWelcomeEmbeds(member) {
     const displayName = getMemberDisplayName(member, member.user);
+    const panelTheme = getCurrentPanelTheme();
 
     const welcomeEmbed = buildPanelEmbed({
         title: WELCOME_PANEL_TITLE,
-        description:
-            `Hey ${displayName}, willkommen im ${member.guild.name} Netzwerk.\n` +
-            'Vintage Pieces, Community Fits, Archive Mockups und VELOO Updates laufen hier an einem Ort zusammen.',
-        color: '#d9d3c7',
+        description: `Hey ${displayName}, willkommen bei ${member.guild.name}.`,
+        color: panelTheme.welcome,
         fields: [
             {
                 name: 'START',
                 value:
-                    `Regeln: ${getChannelMention(RULES_CHANNEL_ID, 'Regeln')}\n` +
-                    `Tutorials: ${getChannelMention(TUTORIAL_CHANNEL_ID, 'Tutorials')}\n` +
-                    `Infos: ${getChannelMention(INFO_CHANNEL_ID, 'Infos')}`,
+                    `${getChannelMention(RULES_CHANNEL_ID, 'Regeln')}\n` +
+                    `${getChannelMention(TUTORIAL_CHANNEL_ID, 'Tutorials')}\n` +
+                    `${getChannelMention(INFO_CHANNEL_ID, 'Infos')}`,
                 inline: false
             },
             {
-                name: 'CORE PANELS',
+                name: 'PANELS',
                 value:
-                    `${getChannelMention(SELL_CHANNEL_ID, '`sell-your-piece`')} fuer Listings\n` +
-                    `${getChannelMention(MOCKUP_CHANNEL_ID, '`mockups`')} fuer Ideen\n` +
-                    `${getChannelMention(OUTFIT_CHANNEL_ID, '`fits`')} fuer Daily Fits\n` +
-                    `${getChannelMention(REACTION_ROLE_CHANNEL_ID, '`roles`')} fuer deine Rollen`,
+                    `${getChannelMention(SELL_CHANNEL_ID, '`sell`')}\n` +
+                    `${getChannelMention(MOCKUP_CHANNEL_ID, '`mockups`')}\n` +
+                    `${getChannelMention(OUTFIT_CHANNEL_ID, '`fits`')}\n` +
+                    `${getChannelMention(ISO_CHANNEL_ID, '`iso`')}\n` +
+                    `${getChannelMention(REACTION_ROLE_CHANNEL_ID, '`roles`')}`,
                 inline: false
             },
             {
@@ -1249,22 +1406,17 @@ function buildWelcomeEmbeds(member) {
 
     const guideEmbed = buildPanelEmbed({
         title: 'HOW TO MOVE',
-        description:
-            'Nutze die Buttons unten, wenn du direkt Hilfe brauchst.\n\n' +
-            '1. Lies die Regeln.\n' +
-            '2. Schau dir die Tutorials an.\n' +
-            '3. Poste dein Piece, dein Mockup oder deinen Fit.\n' +
-            '4. Like, vote und werde Teil der Community.',
-        color: '#8f8a81',
+        description: 'Regeln checken, Rollen waehlen, loslegen.',
+        color: panelTheme.roles,
         fields: [
             {
                 name: 'VIP',
-                value: 'VIP lohnt sich, weil Listings, Fits und Mockups deutlich staerker hervorgehoben werden.',
+                value: 'Mehr Sichtbarkeit fuer Listings, Fits und Mockups.',
                 inline: false
             },
             {
-                name: 'SUPPORT',
-                value: 'Wenn du Hilfe brauchst, frag im Main-Channel oder schreib `mods` fuer das Mod-Team.',
+                name: 'HELP',
+                value: 'Fragen im Main-Channel oder einfach `mods` schreiben.',
                 inline: false
             }
         ],
@@ -1475,6 +1627,189 @@ async function markTrackedItemCopiesAsSold(guild, itemId, clickedMessage) {
     }
 }
 
+function normalizeListingTitle(title = '') {
+    return title.replace(/^(SOLD|RESERVED)\s*\|\s*/i, '').trim();
+}
+
+function cleanListingDescription(description = '') {
+    return description
+        .replace(/^Dieses Piece wurde verkauft\.\s*/i, '')
+        .replace(/^Dieses Piece ist gerade reserviert\.\s*/i, '')
+        .trim();
+}
+
+function getListingUrlFromSource(message, listedItem) {
+    if (listedItem?.url) {
+        return listedItem.url;
+    }
+
+    for (const row of message.components || []) {
+        for (const component of row.components || []) {
+            if (component.url) {
+                return component.url;
+            }
+        }
+    }
+
+    return message.url;
+}
+
+function buildListingActionRow(itemId, sellerId, vintedUrl, status = 'active') {
+    const isReserved = status === 'reserved';
+    const isSold = status === 'sold';
+
+    return new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+            .setLabel('VINTED')
+            .setStyle(ButtonStyle.Link)
+            .setURL(vintedUrl),
+        new ButtonBuilder()
+            .setCustomId(`fav_${itemId}_${sellerId}`)
+            .setLabel('FAV')
+            .setStyle(ButtonStyle.Secondary)
+            .setDisabled(isReserved || isSold),
+        new ButtonBuilder()
+            .setCustomId(`offer_${itemId}_${sellerId}`)
+            .setLabel('OFFER')
+            .setStyle(ButtonStyle.Success)
+            .setDisabled(isReserved || isSold),
+        new ButtonBuilder()
+            .setCustomId(`reserved_${itemId}_${sellerId}`)
+            .setLabel('RESERVED')
+            .setStyle(ButtonStyle.Secondary)
+            .setDisabled(isReserved || isSold),
+        new ButtonBuilder()
+            .setCustomId(`sold_${itemId}_${sellerId}`)
+            .setLabel('SOLD')
+            .setStyle(ButtonStyle.Danger)
+            .setDisabled(isSold)
+    );
+}
+
+function buildListingEmbedsForStatus(message, status) {
+    const statusMeta = {
+        active: {
+            titlePrefix: '',
+            descriptionPrefix: '',
+            color: null,
+            footerSuffix: ''
+        },
+        reserved: {
+            titlePrefix: 'RESERVED | ',
+            descriptionPrefix: 'Dieses Piece ist gerade reserviert.',
+            color: '#d6a24c',
+            footerSuffix: ' | RESERVED'
+        },
+        sold: {
+            titlePrefix: 'SOLD | ',
+            descriptionPrefix: 'Dieses Piece wurde verkauft.',
+            color: '#e74c3c',
+            footerSuffix: ' | SOLD'
+        }
+    }[status];
+
+    return message.embeds.map((embed, index) => {
+        const nextEmbed = EmbedBuilder.from(embed);
+
+        if (statusMeta.color) {
+            nextEmbed.setColor(statusMeta.color);
+        }
+
+        if (index === 0) {
+            const baseTitle = normalizeListingTitle(embed.title || 'Piece');
+            const baseDescription = cleanListingDescription(embed.description || '');
+            const footerText = getEmbedFooterText(embed).replace(/\s+\|\s+(SOLD|RESERVED)$/i, '');
+            const nextDescription = statusMeta.descriptionPrefix
+                ? [statusMeta.descriptionPrefix, baseDescription].filter(Boolean).join('\n\n')
+                : baseDescription;
+
+            nextEmbed.setTitle(`${statusMeta.titlePrefix}${baseTitle}`.trim());
+            if (nextDescription) {
+                nextEmbed.setDescription(nextDescription);
+            } else {
+                delete nextEmbed.data.description;
+            }
+            nextEmbed.setFooter({
+                text: `${footerText}${statusMeta.footerSuffix}`.trim()
+            });
+        }
+
+        return nextEmbed;
+    });
+}
+
+async function applyListingStatusToMessage(message, listedItem, status) {
+    const customIds = (message.components || []).flatMap(row =>
+        (row.components || [])
+            .map(component => component.customId || component.data?.custom_id || null)
+            .filter(Boolean)
+    );
+    const sellerIdMatch = customIds
+        .map(customId => customId.match(/^[a-z]+_(\d+)_([0-9]+)$/i))
+        .find(Boolean);
+    const sellerId = listedItem?.sellerId || sellerIdMatch?.[2] || message.interaction?.user?.id;
+    const itemIdMatch = getEmbedFooterText(message.embeds[0]).match(/Item-ID:\s*(\d+)/);
+    const itemId = listedItem?.itemId || itemIdMatch?.[1] || sellerIdMatch?.[1];
+    const listingUrl = getListingUrlFromSource(message, listedItem);
+
+    if (!itemId || !sellerId || !listingUrl) {
+        return;
+    }
+
+    const contentByStatus = {
+        reserved: '## RESERVED\nDieses Piece ist gerade reserviert.',
+        sold: '## SOLD\nDieses Piece ist verkauft.'
+    };
+
+    await message.edit({
+        content: contentByStatus[status],
+        embeds: buildListingEmbedsForStatus(message, status),
+        components: [buildListingActionRow(itemId, sellerId, listingUrl, status)]
+    }).catch(() => {});
+}
+
+async function markTrackedItemCopiesWithStatus(guild, itemId, clickedMessage, status) {
+    const listedItem = getListedItem(itemId);
+
+    if (clickedMessage) {
+        await applyListingStatusToMessage(clickedMessage, listedItem, status);
+    }
+
+    const channelsToCheck = new Map();
+
+    for (const channelId of ITEM_MIRROR_CHANNEL_IDS) {
+        const channel = await guild.channels.fetch(channelId).catch(() => null);
+        if (channel?.type === ChannelType.GuildText) {
+            channelsToCheck.set(channel.id, channel);
+        }
+    }
+
+    const favoriteChannels = guild.channels.cache.filter(channel =>
+        channel.type === ChannelType.GuildText && channel.name.startsWith('favs-')
+    );
+
+    for (const channel of favoriteChannels.values()) {
+        channelsToCheck.set(channel.id, channel);
+    }
+
+    for (const channel of channelsToCheck.values()) {
+        try {
+            const messages = await channel.messages.fetch({ limit: 100 });
+            const copies = messages.filter(message =>
+                message.id !== clickedMessage?.id &&
+                message.author.id === client.user.id &&
+                getEmbedFooterText(message.embeds[0])?.includes(`Item-ID: ${itemId}`)
+            );
+
+            for (const copy of copies.values()) {
+                await applyListingStatusToMessage(copy, listedItem, status);
+            }
+        } catch (error) {
+            console.error(`Error marking ${status} in ${channel.id}:`, error.message);
+        }
+    }
+}
+
 async function countUserSales(salesChannel, userId) {
     let count = 0;
     let lastId;
@@ -1550,7 +1885,7 @@ async function collectSalesCounts(salesChannel) {
 }
 
 async function syncTrustedSellerRoleForMember(guild, userId, saleCount) {
-    const trustedRole = findRoleByIdOrName(guild, TRUSTED_SELLER_ROLE_ID, TRUSTED_SELLER_ROLE_NAME);
+    const trustedRole = findRoleByIdOrName(guild, TRUSTED_SELLER_ROLE_ID, DEFAULT_TRUSTED_SELLER_ROLE_NAME);
     if (!trustedRole) {
         return false;
     }
@@ -1584,7 +1919,7 @@ async function syncTrustedSellerRoles() {
     }
 
     const guild = salesChannel.guild;
-    const trustedRole = findRoleByIdOrName(guild, TRUSTED_SELLER_ROLE_ID, TRUSTED_SELLER_ROLE_NAME);
+    const trustedRole = findRoleByIdOrName(guild, TRUSTED_SELLER_ROLE_ID, DEFAULT_TRUSTED_SELLER_ROLE_NAME);
     if (!trustedRole) {
         return;
     }
@@ -1676,28 +2011,22 @@ async function sendSellPanel() {
         return;
     }
 
+    const panelTheme = getCurrentPanelTheme();
     await deletePanelMessages(sellChannel, ['SELL YOUR PIECE', SELL_PANEL_TITLE]);
 
     const embed = buildPanelEmbed({
         title: SELL_PANEL_TITLE,
-        description:
-            'Vintage listing panel fuer den cleanen Marketplace-Flow.\n' +
-            'Dein Post wird danach direkt mit Fav, Offer und SOLD steuerbar.',
-        color: '#d7d0c4',
+        description: 'Piece eintragen, Bild senden, live gehen.',
+        color: panelTheme.market,
         fields: [
             {
-                name: 'FORMAT',
-                value: 'Piece, Brand, Price, Size und Vinted-Link werden zuerst im Modal eingetragen.',
+                name: 'FLOW',
+                value: 'Modal -> 1 Bild + `done`',
                 inline: false
             },
             {
-                name: 'UPLOAD',
-                value: 'Danach sendest du genau 1 Bild zusammen mit `done` in den Channel.',
-                inline: false
-            },
-            {
-                name: 'VIP',
-                value: 'VIP Listings werden im Feed gold hervorgehoben und wirken deutlich staerker.',
+                name: 'STATUS',
+                value: 'Fav, Offer, Reserved, Sold',
                 inline: false
             }
         ],
@@ -1707,15 +2036,15 @@ async function sendSellPanel() {
     const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
             .setCustomId('start_upload')
-            .setLabel('SELL PIECE')
+            .setLabel('SELL')
             .setStyle(ButtonStyle.Primary),
         new ButtonBuilder()
             .setCustomId('sell_panel_info')
-            .setLabel('HOW IT WORKS')
+            .setLabel('INFO')
             .setStyle(ButtonStyle.Secondary),
         new ButtonBuilder()
             .setCustomId('sell_panel_vip')
-            .setLabel('VIP INFO')
+            .setLabel('VIP')
             .setStyle(ButtonStyle.Secondary)
     );
 
@@ -1732,23 +2061,17 @@ async function sendTeamPanel() {
         return;
     }
 
+    const panelTheme = getCurrentPanelTheme();
     await deletePanelMessages(teamChannel, ['FIND A TEAM', TEAM_PANEL_TITLE]);
 
     const embed = buildPanelEmbed({
         title: TEAM_PANEL_TITLE,
-        description:
-            'Finde Leute fuer Resell-Aktionen, gemeinsame Snipes und Archive-Projekte.\n' +
-            'Kurzer Input rein, dann sieht die Community direkt, was du suchst.',
-        color: '#8e9486',
+        description: 'Finde Leute fuer Resell und Projekte.',
+        color: panelTheme.team,
         fields: [
             {
-                name: 'USE CASES',
-                value: 'Resell Partner, Snipe Session, Berlin Meet-up, Brand Austausch, Project Match.',
-                inline: false
-            },
-            {
                 name: 'FLOW',
-                value: 'TEAM-UP klicken, dein Gesuch schreiben und direkt als cleanen Post veroeffentlichen.',
+                value: 'Button klicken -> Gesuch posten',
                 inline: false
             }
         ],
@@ -1762,7 +2085,7 @@ async function sendTeamPanel() {
             .setStyle(ButtonStyle.Success),
         new ButtonBuilder()
             .setCustomId('team_panel_info')
-            .setLabel('HOW IT WORKS')
+            .setLabel('INFO')
             .setStyle(ButtonStyle.Secondary)
     );
 
@@ -1775,27 +2098,21 @@ async function sendMockupPanel() {
         return;
     }
 
+    const panelTheme = getCurrentPanelTheme();
     await deletePanelMessages(mockupChannel, MOCKUP_PANEL_TITLE);
 
     const embed = buildPanelEmbed({
         title: MOCKUP_PANEL_TITLE,
-        description:
-            'Archive Board fuer neue VELOO Ideen.\n' +
-            'Poste dein Konzept sauber und lass die Community 7 Tage lang voten.',
-        color: '#bda98b',
+        description: 'Konzept posten. Voting 7 Tage.',
+        color: panelTheme.mockup,
         fields: [
             {
                 name: 'INPUT',
-                value: 'Welche Art von Kleidung oder Accessoire du teilst, zum Beispiel Hoodie, Jersey, Cap, Tote Bag oder Beanie.'
+                value: 'Art + Name'
             },
             {
                 name: 'UPLOAD',
-                value: 'Klicke auf den Button, trage deine Angaben ein und sende danach genau eine Nachricht mit 1 bis 3 Bildern und dem Text `done`.'
-            },
-            {
-                name: 'VOTING',
-                value: 'Die Community kann 7 Tage lang liken. Reports gehen direkt an das Mod-Team.',
-                inline: false
+                value: '1 bis 3 Bilder + `done`'
             }
         ],
         footerText: 'VELOO ARCHIVE // MOCKUP PANEL'
@@ -1804,11 +2121,11 @@ async function sendMockupPanel() {
     const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
             .setCustomId('start_mockup_upload')
-            .setLabel('MOCKUP TEILEN')
+            .setLabel('SHARE')
             .setStyle(ButtonStyle.Secondary),
         new ButtonBuilder()
             .setCustomId('mockup_panel_info')
-            .setLabel('VOTE INFO')
+            .setLabel('INFO')
             .setStyle(ButtonStyle.Secondary)
     );
 
@@ -1821,27 +2138,21 @@ async function sendOutfitPanel() {
         return;
     }
 
+    const panelTheme = getCurrentPanelTheme();
     await deletePanelMessages(outfitChannel, OUTFIT_PANEL_TITLE);
 
     const embed = buildPanelEmbed({
         title: OUTFIT_PANEL_TITLE,
-        description:
-            'Daily fit panel fuer starke archive und streetwear Looks.\n' +
-            'Ein cleanes Bild, kurzer Text und die Community votet bis Mitternacht.',
-        color: '#9ca4af',
+        description: '1 Fit, 1 Bild, Daily Vote.',
+        color: panelTheme.fit,
         fields: [
             {
                 name: 'INPUT',
-                value: 'Beschreibe kurz dein Outfit, zum Beispiel Vintage Nike Zip, Baggy Denim und New Balance 9060.'
+                value: 'Kurze Fit-Beschreibung'
             },
             {
                 name: 'UPLOAD',
-                value: 'Klicke auf den Button, fuelle das Modal aus und sende danach genau eine Nachricht mit 1 Bild und dem Text `done`.'
-            },
-            {
-                name: 'DAILY WIN',
-                value: 'Likes laufen bis Mitternacht. Danach postet der Bot den Tagesgewinner automatisch.',
-                inline: false
+                value: '1 Bild + `done`'
             }
         ],
         footerText: 'VELOO ARCHIVE // FIT PANEL'
@@ -1854,14 +2165,51 @@ async function sendOutfitPanel() {
             .setStyle(ButtonStyle.Primary),
         new ButtonBuilder()
             .setCustomId('outfit_panel_info')
-            .setLabel('DAILY WIN INFO')
+            .setLabel('INFO')
             .setStyle(ButtonStyle.Secondary)
     );
 
     await outfitChannel.send({ embeds: [embed], components: [row] });
 }
 
-async function sendReactionRolePanel() {
+async function sendIsoPanel() {
+    const isoChannel = await client.channels.fetch(ISO_CHANNEL_ID).catch(() => null);
+    if (!isoChannel) {
+        return;
+    }
+
+    const panelTheme = getCurrentPanelTheme();
+    await deletePanelMessages(isoChannel, ISO_PANEL_TITLE);
+
+    const embed = buildPanelEmbed({
+        title: ISO_PANEL_TITLE,
+        description: 'Poste dein Gesuch.',
+        color: panelTheme.iso,
+        fields: [
+            {
+                name: 'INPUT',
+                value: 'Piece, Size, Budget, Name',
+                inline: false
+            }
+        ],
+        footerText: 'VELOO ARCHIVE // ISO PANEL'
+    });
+
+    const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+            .setCustomId('start_iso')
+            .setLabel('POST ISO')
+            .setStyle(ButtonStyle.Primary),
+        new ButtonBuilder()
+            .setCustomId('iso_panel_info')
+            .setLabel('INFO')
+            .setStyle(ButtonStyle.Secondary)
+    );
+
+    await isoChannel.send({ embeds: [embed], components: [row] });
+}
+
+async function sendReactionRolePanelLegacy() {
     const roleChannel = await client.channels.fetch(REACTION_ROLE_CHANNEL_ID).catch(() => null);
     if (!roleChannel) {
         return;
@@ -1886,6 +2234,40 @@ async function sendReactionRolePanel() {
                 name: 'AUTO ROLE',
                 value:
                     `${TRUSTED_SELLER_ROLE_NAME} wird automatisch vergeben, sobald du ${TRUSTED_SELLER_MIN_SALES} Sales erreicht hast.`,
+                inline: false
+            }
+        ],
+        footerText: 'VELOO&YESTERA // ROLE PANEL'
+    });
+
+    await roleChannel.send({
+        embeds: [embed],
+        components: buildReactionRoleRows()
+    });
+}
+
+async function sendReactionRolePanel() {
+    const roleChannel = await client.channels.fetch(REACTION_ROLE_CHANNEL_ID).catch(() => null);
+    if (!roleChannel) {
+        return;
+    }
+
+    const panelTheme = getCurrentPanelTheme();
+    await deletePanelMessages(roleChannel, ROLE_PANEL_TITLE);
+
+    const embed = buildPanelEmbed({
+        title: ROLE_PANEL_TITLE,
+        description: 'Waehle deine Bereiche aus.',
+        color: panelTheme.roles,
+        fields: [
+            {
+                name: 'ROLE PICK',
+                value: 'Vintage, Resell, Mockups, Fits, BrandMEMBER',
+                inline: false
+            },
+            {
+                name: 'AUTO ROLE',
+                value: `${DEFAULT_TRUSTED_SELLER_ROLE_NAME} ab ${TRUSTED_SELLER_MIN_SALES} Sales.`,
                 inline: false
             }
         ],
@@ -1923,6 +2305,12 @@ async function refreshPanels() {
         await sendOutfitPanel();
     } catch (error) {
         console.error('Outfit channel error:', error.message);
+    }
+
+    try {
+        await sendIsoPanel();
+    } catch (error) {
+        console.error('ISO channel error:', error.message);
     }
 
     try {
@@ -2720,24 +3108,7 @@ async function handleSellUploadMessage(message, uploadData) {
             .addFields(buildVipHighlightField());
     }
 
-    const row = new ActionRowBuilder().addComponents(
-        new ButtonBuilder()
-            .setLabel('VINTED')
-            .setStyle(ButtonStyle.Link)
-            .setURL(uploadData.url),
-        new ButtonBuilder()
-            .setCustomId(`fav_${itemId}_${message.author.id}`)
-            .setLabel('FAV')
-            .setStyle(ButtonStyle.Secondary),
-        new ButtonBuilder()
-            .setCustomId(`offer_${itemId}_${message.author.id}`)
-            .setLabel('OFFER')
-            .setStyle(ButtonStyle.Success),
-        new ButtonBuilder()
-            .setCustomId(`sold_${itemId}_${message.author.id}`)
-            .setLabel('SOLD')
-            .setStyle(ButtonStyle.Danger)
-    );
+    const row = buildListingActionRow(itemId, message.author.id, uploadData.url, 'active');
 
     const channel = await client.channels.fetch(SELL_CHANNEL_ID).catch(() => null);
     if (!channel) {
@@ -2768,6 +3139,7 @@ async function handleSellUploadMessage(message, uploadData) {
         monthKey: getMonthKey(new Date()),
         favoriteUserIds: [],
         offerUserIds: [],
+        reservedAt: null,
         soldAt: null,
         previewImageUrl: sentMessage.attachments.first()?.url || null
     };
@@ -3105,7 +3477,8 @@ client.on('interactionCreate', async interaction => {
                     'sell_panel_vip',
                     'team_panel_info',
                     'mockup_panel_info',
-                    'outfit_panel_info'
+                    'outfit_panel_info',
+                    'iso_panel_info'
                 ].includes(interaction.customId)
             ) {
                 const panelInfoText = buildPanelInfoText(interaction.customId);
@@ -3235,6 +3608,49 @@ client.on('interactionCreate', async interaction => {
                 return interaction.showModal(modal);
             }
 
+            if (interaction.customId === 'start_iso') {
+                const modal = new ModalBuilder()
+                    .setCustomId('iso_modal')
+                    .setTitle('ISO / Looking For');
+
+                const pieceInput = new TextInputBuilder()
+                    .setCustomId('iso_piece')
+                    .setLabel('Wonach suchst du?')
+                    .setPlaceholder('z.B. Nike Zip Hoodie')
+                    .setStyle(TextInputStyle.Short)
+                    .setRequired(true);
+
+                const sizeInput = new TextInputBuilder()
+                    .setCustomId('iso_size')
+                    .setLabel('Size')
+                    .setPlaceholder('z.B. M / L / 32 / One Size')
+                    .setStyle(TextInputStyle.Short)
+                    .setRequired(true);
+
+                const budgetInput = new TextInputBuilder()
+                    .setCustomId('iso_budget')
+                    .setLabel('Budget')
+                    .setPlaceholder('z.B. bis 40 EUR')
+                    .setStyle(TextInputStyle.Short)
+                    .setRequired(true);
+
+                const nameInput = new TextInputBuilder()
+                    .setCustomId('iso_name')
+                    .setLabel('Dein Name')
+                    .setPlaceholder('z.B. Hasan / veloo')
+                    .setStyle(TextInputStyle.Short)
+                    .setRequired(true);
+
+                modal.addComponents(
+                    new ActionRowBuilder().addComponents(pieceInput),
+                    new ActionRowBuilder().addComponents(sizeInput),
+                    new ActionRowBuilder().addComponents(budgetInput),
+                    new ActionRowBuilder().addComponents(nameInput)
+                );
+
+                return interaction.showModal(modal);
+            }
+
             if (interaction.customId.startsWith('mockup_like_')) {
                 const entryId = interaction.customId.replace('mockup_like_', '');
                 return handleMockupLike(interaction, entryId);
@@ -3269,6 +3685,42 @@ client.on('interactionCreate', async interaction => {
 
             const [action, itemId, sellerId] = parts;
 
+            if (action === 'reserved') {
+                if (interaction.user.id !== sellerId) {
+                    return replyToInteraction(interaction, {
+                        content: 'Only the seller can do that.',
+                        ephemeral: true
+                    });
+                }
+
+                const listedItem = getListedItem(itemId);
+                if (listedItem?.soldAt) {
+                    return replyToInteraction(interaction, {
+                        content: 'Dieses Piece ist bereits verkauft.',
+                        ephemeral: true
+                    });
+                }
+
+                if (listedItem?.reservedAt) {
+                    return replyToInteraction(interaction, {
+                        content: 'Dieses Piece ist bereits als reserved markiert.',
+                        ephemeral: true
+                    });
+                }
+
+                await markTrackedItemCopiesWithStatus(interaction.guild, itemId, interaction.message, 'reserved');
+
+                if (listedItem) {
+                    listedItem.reservedAt = new Date().toISOString();
+                    saveMockupStore();
+                }
+
+                return replyToInteraction(interaction, {
+                    content: 'Piece wurde als RESERVED markiert.',
+                    ephemeral: true
+                });
+            }
+
             if (action === 'sold') {
                 if (interaction.user.id !== sellerId) {
                     return replyToInteraction(interaction, {
@@ -3285,7 +3737,7 @@ client.on('interactionCreate', async interaction => {
                     });
                 }
 
-                await markTrackedItemCopiesAsSold(interaction.guild, itemId, interaction.message);
+                await markTrackedItemCopiesWithStatus(interaction.guild, itemId, interaction.message, 'sold');
                 const currentSaleNumber = await announceSale(sellerId).catch(error => {
                     console.error('Error posting sale message:', error.message);
                     return null;
@@ -3309,6 +3761,7 @@ client.on('interactionCreate', async interaction => {
                         monthKey: getMonthKey(new Date()),
                         favoriteUserIds: [],
                         offerUserIds: [],
+                        reservedAt: null,
                         soldAt: new Date().toISOString(),
                         previewImageUrl:
                             interaction.message.embeds[0]?.image?.url ||
@@ -3492,6 +3945,41 @@ client.on('interactionCreate', async interaction => {
 
                 return replyToInteraction(interaction, {
                     content: 'Sende jetzt genau eine Nachricht mit 1 Bild und dem Text `done`. Diese Nachricht wird danach automatisch geloescht.',
+                    ephemeral: true
+                });
+            }
+
+            if (interaction.customId === 'iso_modal') {
+                const isVipMember = memberHasVipRole(interaction.member);
+                const creatorName = getMemberDisplayName(interaction.member, interaction.user);
+
+                const embed = new EmbedBuilder()
+                    .setTitle(isVipMember ? 'VIP ISO' : 'ISO / Looking For')
+                    .setDescription(interaction.fields.getTextInputValue('iso_piece'))
+                    .addFields(
+                        { name: 'Size', value: interaction.fields.getTextInputValue('iso_size'), inline: true },
+                        { name: 'Budget', value: interaction.fields.getTextInputValue('iso_budget'), inline: true },
+                        { name: 'Name', value: interaction.fields.getTextInputValue('iso_name'), inline: true },
+                        { name: 'Von', value: `<@${interaction.user.id}>`, inline: true }
+                    )
+                    .setColor(isVipMember ? '#f1c40f' : getCurrentPanelTheme().iso)
+                    .setTimestamp();
+
+                if (isVipMember) {
+                    embed
+                        .setAuthor({
+                            name: `VIP ISO • ${creatorName}`,
+                            iconURL: interaction.user.displayAvatarURL()
+                        })
+                        .addFields(buildVipHighlightField());
+                }
+
+                await interaction.channel.send({ embeds: [embed] });
+                recordUserActivity(interaction.user.id, 'iso_post', {
+                    displayName: creatorName
+                });
+                return replyToInteraction(interaction, {
+                    content: 'Dein ISO wurde gepostet.',
                     ephemeral: true
                 });
             }
