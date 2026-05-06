@@ -33,7 +33,7 @@ const TIMEZONE = process.env.BOT_TIMEZONE || 'Europe/Berlin';
 const SELL_CHANNEL_ID = process.env.SELL_CHANNEL_ID || '1492261103315587354';
 const TEAM_CHANNEL_ID = process.env.TEAM_CHANNEL_ID || null;
 const SALES_CHANNEL_ID = process.env.SALES_CHANNEL_ID || '1492593772884660224';
-const RULES_CHANNEL_ID = process.env.RULES_CHANNEL_ID || null;
+const RULES_CHANNEL_ID = process.env.RULES_CHANNEL_ID || '1492255500434407630';
 const TUTORIAL_CHANNEL_ID = process.env.TUTORIAL_CHANNEL_ID || null;
 const INFO_CHANNEL_ID = process.env.INFO_CHANNEL_ID || null;
 
@@ -55,6 +55,9 @@ const OUTFIT_PANEL_TITLE = 'POSTE DEINEN FIT';
 const OUTFIT_DAILY_CRON = process.env.OUTFIT_DAILY_CRON || '0 0 * * *';
 const ISO_CHANNEL_ID = process.env.ISO_CHANNEL_ID || '1492913251577626724';
 const ISO_PANEL_TITLE = 'SUCHE / ISO';
+const COOPERATION_CHANNEL_ID = process.env.COOPERATION_CHANNEL_ID || '1500941631606624396';
+const CREATOR_CHANNEL_ID = process.env.CREATOR_CHANNEL_ID || '1501550981421207562';
+const CREATOR_REVIEW_CHANNEL_ID = process.env.CREATOR_REVIEW_CHANNEL_ID || '1492261750110949509';
 const MONTHLY_ACTIVITY_CHANNEL_ID = process.env.MONTHLY_ACTIVITY_CHANNEL_ID || '1500944487357223092';
 const MONTHLY_ACTIVITY_CRON = process.env.MONTHLY_ACTIVITY_CRON || '0 0 1 * *';
 const COMMUNITY_COOKED_CHANNEL_ID = process.env.COMMUNITY_COOKED_CHANNEL_ID || '1501207095092183201';
@@ -74,12 +77,19 @@ const MAIN_REPLY_COOLDOWN_MS = Number(process.env.MAIN_REPLY_COOLDOWN_MS || 3000
 const TRUSTED_SELLER_ROLE_ID = process.env.TRUSTED_SELLER_ROLE_ID || null;
 const TRUSTED_SELLER_ROLE_NAME = process.env.TRUSTED_SELLER_ROLE_NAME || '𝐓𝐫𝐮𝐬𝐭𝐞𝐝𝐒𝐞𝐥𝐥𝐞𝐫';
 const TRUSTED_SELLER_MIN_SALES = Number(process.env.TRUSTED_SELLER_MIN_SALES || 5);
+const OWNER_ROLE_ID = process.env.OWNER_ROLE_ID || null;
+const OWNER_ROLE_NAME = process.env.OWNER_ROLE_NAME || '𝘖𝘸𝘯𝘦𝘳';
+const CONTENT_CREATOR_ROLE_ID = process.env.CONTENT_CREATOR_ROLE_ID || null;
+const CONTENT_CREATOR_ROLE_NAME = process.env.CONTENT_CREATOR_ROLE_NAME || '𝐂𝐎𝐍𝐓𝐄𝐍𝐓 𝐂𝐑𝐄𝐀𝐓𝐎𝐑';
 const EFFECTIVE_MODERATOR_ROLE_NAME = process.env.MODERATOR_ROLE_NAME || '𝘔𝘰𝘥𝘦𝘳𝘢𝘵𝘰𝘳';
 const EFFECTIVE_TRUSTED_SELLER_ROLE_NAME = process.env.TRUSTED_SELLER_ROLE_NAME || '𝐓𝐫𝐮𝐬𝐭𝐞𝐝𝐒𝐞𝐥𝐥𝐞𝐫';
 const SELL_PANEL_TITLE = 'VELOO ARCHIVE / MARKT';
 const TEAM_PANEL_TITLE = 'VELOO ARCHIVE / TEAMFINDER';
 const WELCOME_PANEL_TITLE = 'WILLKOMMEN BEI VELOO ARCHIVE';
 const ROLE_PANEL_TITLE = 'VELOO&YESTERA / ROLLEN';
+const RULES_PANEL_TITLE = '📜 VELOO&YESTERA REGELN';
+const COOPERATION_PANEL_TITLE = '🤝 COOPERATIONS';
+const CREATOR_PANEL_TITLE = '🎥 CREATOR BEWERBUNG';
 const DEFAULT_MODERATOR_ROLE_NAME = process.env.MODERATOR_ROLE_NAME || '𝘔𝘰𝘥𝘦𝘳𝘢𝘵𝘰𝘳';
 const DEFAULT_TRUSTED_SELLER_ROLE_NAME = process.env.TRUSTED_SELLER_ROLE_NAME || '𝐓𝐫𝐮𝐬𝐭𝐞𝐝𝐒𝐞𝐥𝐥𝐞𝐫';
 const DEFAULT_REACTION_ROLE_OPTIONS = [
@@ -302,6 +312,7 @@ function createEmptyMockupStore() {
         outfitSubmissions: {},
         announcedOutfitDates: [],
         listedItems: {},
+        creatorApplications: {},
         activityByMonth: {},
         announcedActivityMonths: [],
         monthlyActivityWinners: {},
@@ -325,6 +336,10 @@ function loadMockupStore() {
             outfitSubmissions: parsed.outfitSubmissions && typeof parsed.outfitSubmissions === 'object' ? parsed.outfitSubmissions : {},
             announcedOutfitDates: Array.isArray(parsed.announcedOutfitDates) ? parsed.announcedOutfitDates : [],
             listedItems: parsed.listedItems && typeof parsed.listedItems === 'object' ? parsed.listedItems : {},
+            creatorApplications:
+                parsed.creatorApplications && typeof parsed.creatorApplications === 'object'
+                    ? parsed.creatorApplications
+                    : {},
             activityByMonth: parsed.activityByMonth && typeof parsed.activityByMonth === 'object' ? parsed.activityByMonth : {},
             announcedActivityMonths: Array.isArray(parsed.announcedActivityMonths) ? parsed.announcedActivityMonths : [],
             monthlyActivityWinners:
@@ -928,6 +943,29 @@ function memberHasVipRole(member) {
     return member.roles.cache.some(role => role.name === VIP_ROLE_NAME);
 }
 
+function memberHasRoleByIdOrName(member, roleId, roleName) {
+    if (!member?.roles?.cache) {
+        return false;
+    }
+
+    if (roleId && member.roles.cache.has(roleId)) {
+        return true;
+    }
+
+    return member.roles.cache.some(role => role.name === roleName);
+}
+
+function memberHasOwnerRole(member) {
+    return memberHasRoleByIdOrName(member, OWNER_ROLE_ID, OWNER_ROLE_NAME);
+}
+
+function memberCanReviewCreatorApplication(member) {
+    return (
+        memberHasOwnerRole(member) ||
+        memberHasRoleByIdOrName(member, MODERATOR_ROLE_ID, EFFECTIVE_MODERATOR_ROLE_NAME)
+    );
+}
+
 function getChannelMention(channelId, fallbackText) {
     return channelId ? `<#${channelId}>` : fallbackText;
 }
@@ -1037,23 +1075,23 @@ function buildWelcomeComponents() {
     const guideRow = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
             .setCustomId('welcome_rules')
-            .setLabel('REGELN')
+            .setLabel('📜 REGELN')
             .setStyle(ButtonStyle.Secondary),
         new ButtonBuilder()
             .setCustomId('welcome_tutorials')
-            .setLabel('ANLEITUNG')
+            .setLabel('🧭 ANLEITUNG')
             .setStyle(ButtonStyle.Secondary),
         new ButtonBuilder()
             .setCustomId('welcome_sell')
-            .setLabel('VERKAUF')
+            .setLabel('🛒 VERKAUF')
             .setStyle(ButtonStyle.Primary),
         new ButtonBuilder()
             .setCustomId('welcome_mockup')
-            .setLabel('MOCKUP')
+            .setLabel('🎨 MOCKUP')
             .setStyle(ButtonStyle.Secondary),
         new ButtonBuilder()
             .setCustomId('welcome_outfit')
-            .setLabel('FIT')
+            .setLabel('🔥 FIT')
             .setStyle(ButtonStyle.Secondary)
     );
 
@@ -2016,16 +2054,16 @@ async function sendSellPanel() {
 
     const embed = buildPanelEmbed({
         title: SELL_PANEL_TITLE,
-        description: 'Piece eintragen, Bild senden, live gehen.',
+        description: '🛒 Piece eintragen, Bild senden, live gehen.',
         color: panelTheme.market,
         fields: [
             {
-                name: 'ABLAUF',
+                name: '📝 ABLAUF',
                 value: 'Modal -> 1 Bild + `done`',
                 inline: false
             },
             {
-                name: 'STATUS',
+                name: '📌 STATUS',
                 value: 'Favorit, Angebot, Reserviert, Verkauft',
                 inline: false
             }
@@ -2036,15 +2074,15 @@ async function sendSellPanel() {
     const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
             .setCustomId('start_upload')
-            .setLabel('VERKAUFEN')
+            .setLabel('🛒 VERKAUFEN')
             .setStyle(ButtonStyle.Primary),
         new ButtonBuilder()
             .setCustomId('sell_panel_info')
-            .setLabel('INFO')
+            .setLabel('ℹ️ INFO')
             .setStyle(ButtonStyle.Secondary),
         new ButtonBuilder()
             .setCustomId('sell_panel_vip')
-            .setLabel('VIP')
+            .setLabel('👑 VIP')
             .setStyle(ButtonStyle.Secondary)
     );
 
@@ -2066,11 +2104,11 @@ async function sendTeamPanel() {
 
     const embed = buildPanelEmbed({
         title: TEAM_PANEL_TITLE,
-        description: 'Finde Leute fuer Resell und Projekte.',
+        description: '🤝 Finde Leute fuer Resell und Projekte.',
         color: panelTheme.team,
         fields: [
             {
-                name: 'ABLAUF',
+                name: '📝 ABLAUF',
                 value: 'Button klicken -> Gesuch posten',
                 inline: false
             }
@@ -2081,11 +2119,11 @@ async function sendTeamPanel() {
     const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
             .setCustomId('start_teamup')
-            .setLabel('TEAM SUCHEN')
+            .setLabel('🤝 TEAM SUCHEN')
             .setStyle(ButtonStyle.Success),
         new ButtonBuilder()
             .setCustomId('team_panel_info')
-            .setLabel('INFO')
+            .setLabel('ℹ️ INFO')
             .setStyle(ButtonStyle.Secondary)
     );
 
@@ -2103,15 +2141,15 @@ async function sendMockupPanel() {
 
     const embed = buildPanelEmbed({
         title: MOCKUP_PANEL_TITLE,
-        description: 'Konzept posten. Voting 7 Tage.',
+        description: '🎨 Konzept posten. Voting 7 Tage.',
         color: panelTheme.mockup,
         fields: [
             {
-                name: 'EINGABE',
+                name: '📝 EINGABE',
                 value: 'Art + Name'
             },
             {
-                name: 'UPLOAD',
+                name: '🖼️ UPLOAD',
                 value: '1 bis 3 Bilder + `done`'
             }
         ],
@@ -2121,11 +2159,11 @@ async function sendMockupPanel() {
     const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
             .setCustomId('start_mockup_upload')
-            .setLabel('TEILEN')
+            .setLabel('🎨 TEILEN')
             .setStyle(ButtonStyle.Secondary),
         new ButtonBuilder()
             .setCustomId('mockup_panel_info')
-            .setLabel('INFO')
+            .setLabel('ℹ️ INFO')
             .setStyle(ButtonStyle.Secondary)
     );
 
@@ -2143,15 +2181,15 @@ async function sendOutfitPanel() {
 
     const embed = buildPanelEmbed({
         title: OUTFIT_PANEL_TITLE,
-        description: '1 Fit, 1 Bild, Tagesvoting.',
+        description: '🔥 1 Fit, 1 Bild, Tagesvoting.',
         color: panelTheme.fit,
         fields: [
             {
-                name: 'EINGABE',
+                name: '📝 EINGABE',
                 value: 'Kurze Fit-Beschreibung'
             },
             {
-                name: 'UPLOAD',
+                name: '🖼️ UPLOAD',
                 value: '1 Bild + `done`'
             }
         ],
@@ -2161,11 +2199,11 @@ async function sendOutfitPanel() {
     const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
             .setCustomId('start_outfit_upload')
-            .setLabel('FIT POSTEN')
+            .setLabel('🔥 FIT POSTEN')
             .setStyle(ButtonStyle.Primary),
         new ButtonBuilder()
             .setCustomId('outfit_panel_info')
-            .setLabel('INFO')
+            .setLabel('ℹ️ INFO')
             .setStyle(ButtonStyle.Secondary)
     );
 
@@ -2183,11 +2221,11 @@ async function sendIsoPanel() {
 
     const embed = buildPanelEmbed({
         title: ISO_PANEL_TITLE,
-        description: 'Poste dein Gesuch.',
+        description: '🔎 Poste dein Gesuch.',
         color: panelTheme.iso,
         fields: [
             {
-                name: 'EINGABE',
+                name: '📝 EINGABE',
                 value: 'Piece, Groesse, Budget, Name',
                 inline: false
             }
@@ -2198,11 +2236,11 @@ async function sendIsoPanel() {
     const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
             .setCustomId('start_iso')
-            .setLabel('ISO POSTEN')
+            .setLabel('🔎 ISO POSTEN')
             .setStyle(ButtonStyle.Primary),
         new ButtonBuilder()
             .setCustomId('iso_panel_info')
-            .setLabel('INFO')
+            .setLabel('ℹ️ INFO')
             .setStyle(ButtonStyle.Secondary)
     );
 
@@ -2257,16 +2295,16 @@ async function sendReactionRolePanel() {
 
     const embed = buildPanelEmbed({
         title: ROLE_PANEL_TITLE,
-        description: 'Waehle deine Rollen aus.',
+        description: '🎭 Waehle deine Rollen aus.',
         color: panelTheme.roles,
         fields: [
             {
-                name: 'ROLLEN',
+                name: '🎯 ROLLEN',
                 value: 'Vintage, Resell, Mockups, Fits, BrandMEMBER',
                 inline: false
             },
             {
-                name: 'AUTO-ROLLE',
+                name: '⭐ AUTO-ROLLE',
                 value: `${DEFAULT_TRUSTED_SELLER_ROLE_NAME} ab ${TRUSTED_SELLER_MIN_SALES} Sales.`,
                 inline: false
             }
@@ -2278,6 +2316,242 @@ async function sendReactionRolePanel() {
         embeds: [embed],
         components: buildReactionRoleRows()
     });
+}
+
+function getCreatorApplication(applicationId) {
+    return mockupStore.creatorApplications[applicationId] || null;
+}
+
+function buildCreatorApplicationReviewRow(applicationId, disabled = false) {
+    return new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+            .setCustomId(`creatorapp_accept_${applicationId}`)
+            .setLabel('✅ ANNEHMEN')
+            .setStyle(ButtonStyle.Success)
+            .setDisabled(disabled),
+        new ButtonBuilder()
+            .setCustomId(`creatorapp_decline_${applicationId}`)
+            .setLabel('❌ ABLEHNEN')
+            .setStyle(ButtonStyle.Danger)
+            .setDisabled(disabled)
+    );
+}
+
+function buildCreatorApplicationReviewEmbed(application) {
+    const statusText = {
+        pending: 'Offen',
+        accepted: 'Angenommen',
+        declined: 'Abgelehnt'
+    }[application.status || 'pending'];
+
+    const embed = buildPanelEmbed({
+        title: '🧾 Neue Creator-Bewerbung',
+        description: `<@${application.userId}> hat sich als Creator / Reseller beworben.`,
+        color:
+            application.status === 'accepted'
+                ? '#2ecc71'
+                : application.status === 'declined'
+                    ? '#e74c3c'
+                    : '#f1c40f',
+        fields: [
+            { name: '👤 Account', value: application.accountHandle, inline: true },
+            { name: '🔗 Link', value: application.profileLink, inline: true },
+            { name: '🎯 Bereich', value: application.creatorType, inline: true },
+            { name: '🎂 Alter', value: application.age, inline: true },
+            { name: '⏳ Erfahrung', value: application.experience, inline: false },
+            { name: '📌 Status', value: statusText, inline: true }
+        ],
+        footerText: `Creator-App-ID: ${application.applicationId}`
+    }).setTimestamp(new Date(application.createdAt));
+
+    if (application.reviewedBy) {
+        embed.addFields({
+            name: '🛡️ Geprueft von',
+            value: `<@${application.reviewedBy}>`,
+            inline: true
+        });
+    }
+
+    if (application.reviewReason) {
+        embed.addFields({
+            name: '📝 Grund',
+            value: application.reviewReason,
+            inline: false
+        });
+    }
+
+    return embed;
+}
+
+function buildApprovedCreatorEmbed(application) {
+    return buildPanelEmbed({
+        title: '✅ Neuer Content Creator',
+        description: `Schaut euch den Account von <@${application.userId}> an und gebt Support.`,
+        color: '#2ecc71',
+        fields: [
+            { name: '👤 @Username', value: application.accountHandle, inline: true },
+            { name: '🔗 Link', value: application.profileLink, inline: true },
+            { name: '🎯 Bereich', value: application.creatorType, inline: true },
+            { name: '🎂 Alter', value: application.age, inline: true },
+            { name: '⏳ Erfahrung', value: application.experience, inline: false }
+        ],
+        footerText: 'VELOO&YESTERA // CONTENT CREATOR'
+    });
+}
+
+async function updateCreatorApplicationReviewMessage(application) {
+    if (!application?.reviewChannelId || !application?.reviewMessageId) {
+        return;
+    }
+
+    const reviewChannel = await client.channels.fetch(application.reviewChannelId).catch(() => null);
+    if (!reviewChannel) {
+        return;
+    }
+
+    const reviewMessage = await reviewChannel.messages.fetch(application.reviewMessageId).catch(() => null);
+    if (!reviewMessage) {
+        return;
+    }
+
+    const isPending = (application.status || 'pending') === 'pending';
+    await reviewMessage.edit({
+        embeds: [buildCreatorApplicationReviewEmbed(application)],
+        components: [buildCreatorApplicationReviewRow(application.applicationId, !isPending)]
+    }).catch(() => {});
+}
+
+async function sendCreatorApplicationResultDm(application, accepted, reason = '') {
+    const applicant = await client.users.fetch(application.userId).catch(() => null);
+    if (!applicant) {
+        return;
+    }
+
+    const dmText = accepted
+        ? `Deine Bewerbung bei VELOO&YESTERA wurde angenommen.\nDein Profil wurde jetzt im Creator-Channel geteilt.`
+        : `Deine Bewerbung bei VELOO&YESTERA wurde leider abgelehnt.\nGrund: ${reason || 'Kein Grund angegeben.'}`;
+
+    await applicant.send(dmText).catch(() => {});
+}
+
+async function grantContentCreatorRole(guild, userId) {
+    const member = await guild.members.fetch(userId).catch(() => null);
+    if (!member) {
+        return false;
+    }
+
+    const creatorRole = findRoleByIdOrName(guild, CONTENT_CREATOR_ROLE_ID, CONTENT_CREATOR_ROLE_NAME);
+    if (!creatorRole) {
+        return false;
+    }
+
+    if (!member.roles.cache.has(creatorRole.id)) {
+        await member.roles.add(creatorRole).catch(() => {});
+    }
+
+    return true;
+}
+
+async function sendRulesMessage() {
+    const rulesChannel = await client.channels.fetch(RULES_CHANNEL_ID).catch(() => null);
+    if (!rulesChannel) {
+        return;
+    }
+
+    await deletePanelMessages(rulesChannel, RULES_PANEL_TITLE);
+
+    const embed = buildPanelEmbed({
+        title: RULES_PANEL_TITLE,
+        description: 'Bitte halte den Server sauber, fair und respektvoll. 🤍',
+        color: '#d9cfbf',
+        fields: [
+            { name: '1️⃣ Respekt', value: 'Kein Hate, kein Beleidigen, kein unnötiger Stress.', inline: false },
+            { name: '2️⃣ Kein Spam', value: 'Keine unnötigen Pings, kein Flood und keine Werbung ohne Kontext.', inline: false },
+            { name: '3️⃣ Faire Deals', value: 'Keine Fakes, kein Scam und keine irreführenden Angaben bei Pieces.', inline: false },
+            { name: '4️⃣ Passende Channels', value: 'Poste Fits, Mockups, ISOs und Sales immer in den richtigen Bereich.', inline: false },
+            { name: '5️⃣ Bewerbungen & Reports', value: 'Creator-Bewerbungen und Reports werden vom Mod-Team geprüft.', inline: false },
+            { name: '6️⃣ Mods respektieren', value: 'Entscheidungen vom Team bitte akzeptieren und normal klären.', inline: false }
+        ],
+        footerText: 'VELOO&YESTERA // REGELN'
+    });
+
+    await rulesChannel.send({ embeds: [embed] });
+}
+
+async function sendCooperationPanel() {
+    const cooperationChannel = await client.channels.fetch(COOPERATION_CHANNEL_ID).catch(() => null);
+    if (!cooperationChannel) {
+        return;
+    }
+
+    const panelTheme = getCurrentPanelTheme();
+    await deletePanelMessages(cooperationChannel, COOPERATION_PANEL_TITLE);
+
+    const embed = buildPanelEmbed({
+        title: COOPERATION_PANEL_TITLE,
+        description: '🤝 Neue Coops fuer VELOO&YESTERA posten.',
+        color: panelTheme.team,
+        fields: [
+            {
+                name: '👑 Zugriff',
+                value: `Nur die Rolle ${OWNER_ROLE_NAME} kann dieses Panel benutzen.`,
+                inline: false
+            },
+            {
+                name: '📝 Inhalt',
+                value: 'Titel, Details und Kontakt direkt per Modal eintragen.',
+                inline: false
+            }
+        ],
+        footerText: 'VELOO&YESTERA // COOPERATIONS'
+    });
+
+    const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+            .setCustomId('start_cooperation_post')
+            .setLabel('🤝 COOP POSTEN')
+            .setStyle(ButtonStyle.Primary)
+    );
+
+    await cooperationChannel.send({ embeds: [embed], components: [row] });
+}
+
+async function sendCreatorApplicationPanel() {
+    const creatorChannel = await client.channels.fetch(CREATOR_CHANNEL_ID).catch(() => null);
+    if (!creatorChannel) {
+        return;
+    }
+
+    const panelTheme = getCurrentPanelTheme();
+    await deletePanelMessages(creatorChannel, CREATOR_PANEL_TITLE);
+
+    const embed = buildPanelEmbed({
+        title: CREATOR_PANEL_TITLE,
+        description: '🎥 Bewirb dich als Creator, Reseller oder aehnliches.',
+        color: panelTheme.mockup,
+        fields: [
+            {
+                name: '📌 Was du angibst',
+                value: '@username, Link, Bereich, Alter und Erfahrung.',
+                inline: false
+            },
+            {
+                name: '🛡️ Review',
+                value: 'Deine Bewerbung geht erst an das Mod-Team zur Prüfung.',
+                inline: false
+            }
+        ],
+        footerText: 'VELOO&YESTERA // CREATOR'
+    });
+
+    const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+            .setCustomId('start_creator_application')
+            .setLabel('📝 JETZT BEWERBEN')
+            .setStyle(ButtonStyle.Success)
+    );
+
+    await creatorChannel.send({ embeds: [embed], components: [row] });
 }
 
 async function refreshPanels() {
@@ -2317,6 +2591,18 @@ async function refreshPanels() {
         await sendReactionRolePanel();
     } catch (error) {
         console.error('Reaction role channel error:', error.message);
+    }
+
+    try {
+        await sendCooperationPanel();
+    } catch (error) {
+        console.error('Cooperation channel error:', error.message);
+    }
+
+    try {
+        await sendCreatorApplicationPanel();
+    } catch (error) {
+        console.error('Creator application channel error:', error.message);
     }
 }
 
@@ -3329,6 +3615,9 @@ client.once('ready', async () => {
     console.log(` ${client.user.tag} is online!`);
 
     await refreshPanels();
+    await sendRulesMessage().catch(error => {
+        console.error('Rules message failed on startup:', error.message);
+    });
     await closeExpiredMockupVotes().catch(error => {
         console.error('Mockup vote cleanup failed on startup:', error.message);
     });
@@ -3651,6 +3940,99 @@ client.on('interactionCreate', async interaction => {
                 return interaction.showModal(modal);
             }
 
+            if (interaction.customId === 'start_cooperation_post') {
+                if (!memberHasOwnerRole(interaction.member)) {
+                    return replyToInteraction(interaction, {
+                        content: `Nur die Rolle ${OWNER_ROLE_NAME} kann Cooperationen posten.`,
+                        ephemeral: true
+                    });
+                }
+
+                const modal = new ModalBuilder()
+                    .setCustomId('cooperation_modal')
+                    .setTitle('Cooperation posten');
+
+                const titleInput = new TextInputBuilder()
+                    .setCustomId('coop_title')
+                    .setLabel('Titel')
+                    .setPlaceholder('z.B. Neue Brand Cooperation')
+                    .setStyle(TextInputStyle.Short)
+                    .setRequired(true);
+
+                const contactInput = new TextInputBuilder()
+                    .setCustomId('coop_contact')
+                    .setLabel('Kontakt / Brand')
+                    .setPlaceholder('z.B. @username / Brandname')
+                    .setStyle(TextInputStyle.Short)
+                    .setRequired(true);
+
+                const textInput = new TextInputBuilder()
+                    .setCustomId('coop_text')
+                    .setLabel('Was soll gepostet werden?')
+                    .setPlaceholder('Schreibe hier alle wichtigen Infos rein...')
+                    .setStyle(TextInputStyle.Paragraph)
+                    .setRequired(true);
+
+                modal.addComponents(
+                    new ActionRowBuilder().addComponents(titleInput),
+                    new ActionRowBuilder().addComponents(contactInput),
+                    new ActionRowBuilder().addComponents(textInput)
+                );
+
+                return interaction.showModal(modal);
+            }
+
+            if (interaction.customId === 'start_creator_application') {
+                const modal = new ModalBuilder()
+                    .setCustomId('creator_application_modal')
+                    .setTitle('Creator Bewerbung');
+
+                const handleInput = new TextInputBuilder()
+                    .setCustomId('creator_handle')
+                    .setLabel('TikTok / Insta @username')
+                    .setPlaceholder('z.B. @velooarchive')
+                    .setStyle(TextInputStyle.Short)
+                    .setRequired(true);
+
+                const linkInput = new TextInputBuilder()
+                    .setCustomId('creator_link')
+                    .setLabel('Profil-Link')
+                    .setPlaceholder('https://...')
+                    .setStyle(TextInputStyle.Short)
+                    .setRequired(true);
+
+                const typeInput = new TextInputBuilder()
+                    .setCustomId('creator_type')
+                    .setLabel('Was bist du?')
+                    .setPlaceholder('z.B. Reseller, Creator, UGC')
+                    .setStyle(TextInputStyle.Short)
+                    .setRequired(true);
+
+                const ageInput = new TextInputBuilder()
+                    .setCustomId('creator_age')
+                    .setLabel('Alter')
+                    .setPlaceholder('z.B. 18')
+                    .setStyle(TextInputStyle.Short)
+                    .setRequired(true);
+
+                const experienceInput = new TextInputBuilder()
+                    .setCustomId('creator_experience')
+                    .setLabel('Wie lange machst du das schon?')
+                    .setPlaceholder('z.B. seit 2 Jahren')
+                    .setStyle(TextInputStyle.Paragraph)
+                    .setRequired(true);
+
+                modal.addComponents(
+                    new ActionRowBuilder().addComponents(handleInput),
+                    new ActionRowBuilder().addComponents(linkInput),
+                    new ActionRowBuilder().addComponents(typeInput),
+                    new ActionRowBuilder().addComponents(ageInput),
+                    new ActionRowBuilder().addComponents(experienceInput)
+                );
+
+                return interaction.showModal(modal);
+            }
+
             if (interaction.customId.startsWith('mockup_like_')) {
                 const entryId = interaction.customId.replace('mockup_like_', '');
                 return handleMockupLike(interaction, entryId);
@@ -3671,6 +4053,101 @@ client.on('interactionCreate', async interaction => {
                     .setCustomId('reason')
                     .setLabel('Warum meldest du dieses Mockup?')
                     .setPlaceholder('Beschreibe kurz, was vom Mod-Team geprueft werden soll.')
+                    .setStyle(TextInputStyle.Paragraph)
+                    .setRequired(true);
+
+                modal.addComponents(new ActionRowBuilder().addComponents(reasonInput));
+                return interaction.showModal(modal);
+            }
+
+            if (interaction.customId.startsWith('creatorapp_accept_')) {
+                if (!memberCanReviewCreatorApplication(interaction.member)) {
+                    return replyToInteraction(interaction, {
+                        content: 'Nur Owner oder Moderatoren koennen Creator-Bewerbungen pruefen.',
+                        ephemeral: true
+                    });
+                }
+
+                const applicationId = interaction.customId.replace('creatorapp_accept_', '');
+                const application = getCreatorApplication(applicationId);
+                if (!application) {
+                    return replyToInteraction(interaction, {
+                        content: 'Diese Creator-Bewerbung wurde nicht gefunden.',
+                        ephemeral: true
+                    });
+                }
+
+                if ((application.status || 'pending') !== 'pending') {
+                    return replyToInteraction(interaction, {
+                        content: 'Diese Bewerbung wurde bereits geprueft.',
+                        ephemeral: true
+                    });
+                }
+
+                application.status = 'accepted';
+                application.reviewedBy = interaction.user.id;
+                application.reviewedAt = new Date().toISOString();
+                application.reviewReason = '';
+                saveMockupStore();
+
+                await updateCreatorApplicationReviewMessage(application);
+                await grantContentCreatorRole(interaction.guild, application.userId);
+                await sendCreatorApplicationResultDm(application, true);
+
+                const creatorChannel = await client.channels.fetch(CREATOR_CHANNEL_ID).catch(() => null);
+                if (creatorChannel) {
+                    const row = new ActionRowBuilder().addComponents(
+                        new ButtonBuilder()
+                            .setLabel('🔗 PROFIL OEFFNEN')
+                            .setStyle(ButtonStyle.Link)
+                            .setURL(application.profileLink)
+                    );
+
+                    await creatorChannel.send({
+                        content: `✅ <@${application.userId}> wurde angenommen. Schaut euch den Account an.`,
+                        embeds: [buildApprovedCreatorEmbed(application)],
+                        components: [row]
+                    }).catch(() => {});
+                }
+
+                return replyToInteraction(interaction, {
+                    content: 'Die Creator-Bewerbung wurde angenommen.',
+                    ephemeral: true
+                });
+            }
+
+            if (interaction.customId.startsWith('creatorapp_decline_')) {
+                if (!memberCanReviewCreatorApplication(interaction.member)) {
+                    return replyToInteraction(interaction, {
+                        content: 'Nur Owner oder Moderatoren koennen Creator-Bewerbungen pruefen.',
+                        ephemeral: true
+                    });
+                }
+
+                const applicationId = interaction.customId.replace('creatorapp_decline_', '');
+                const application = getCreatorApplication(applicationId);
+                if (!application) {
+                    return replyToInteraction(interaction, {
+                        content: 'Diese Creator-Bewerbung wurde nicht gefunden.',
+                        ephemeral: true
+                    });
+                }
+
+                if ((application.status || 'pending') !== 'pending') {
+                    return replyToInteraction(interaction, {
+                        content: 'Diese Bewerbung wurde bereits geprueft.',
+                        ephemeral: true
+                    });
+                }
+
+                const modal = new ModalBuilder()
+                    .setCustomId(`creatorapp_decline_modal_${applicationId}`)
+                    .setTitle('Bewerbung ablehnen');
+
+                const reasonInput = new TextInputBuilder()
+                    .setCustomId('decline_reason')
+                    .setLabel('Warum wird abgelehnt?')
+                    .setPlaceholder('Schreibe kurz den Grund fuer die Ablehnung...')
                     .setStyle(TextInputStyle.Paragraph)
                     .setRequired(true);
 
@@ -3921,6 +4398,40 @@ client.on('interactionCreate', async interaction => {
                 });
             }
 
+            if (interaction.customId === 'cooperation_modal') {
+                if (!memberHasOwnerRole(interaction.member)) {
+                    return replyToInteraction(interaction, {
+                        content: `Nur die Rolle ${OWNER_ROLE_NAME} kann Cooperationen posten.`,
+                        ephemeral: true
+                    });
+                }
+
+                const cooperationChannel = await client.channels.fetch(COOPERATION_CHANNEL_ID).catch(() => null);
+                if (!cooperationChannel) {
+                    return replyToInteraction(interaction, {
+                        content: 'Der Cooperation-Channel konnte nicht erreicht werden.',
+                        ephemeral: true
+                    });
+                }
+
+                const embed = buildPanelEmbed({
+                    title: `🤝 ${interaction.fields.getTextInputValue('coop_title')}`,
+                    description: interaction.fields.getTextInputValue('coop_text'),
+                    color: '#cdb79e',
+                    fields: [
+                        { name: '🏷️ Kontakt / Brand', value: interaction.fields.getTextInputValue('coop_contact'), inline: true },
+                        { name: '👑 Gepostet von', value: `<@${interaction.user.id}>`, inline: true }
+                    ],
+                    footerText: 'VELOO&YESTERA // COOPERATION'
+                }).setTimestamp();
+
+                await cooperationChannel.send({ embeds: [embed] });
+                return replyToInteraction(interaction, {
+                    content: 'Die Cooperation wurde gepostet.',
+                    ephemeral: true
+                });
+            }
+
             if (interaction.customId === 'mockup_modal') {
                 activeUploads.set(interaction.user.id, {
                     type: 'mockup',
@@ -3945,6 +4456,55 @@ client.on('interactionCreate', async interaction => {
 
                 return replyToInteraction(interaction, {
                     content: 'Sende jetzt genau eine Nachricht mit 1 Bild und dem Text `done`. Diese Nachricht wird danach automatisch geloescht.',
+                    ephemeral: true
+                });
+            }
+
+            if (interaction.customId === 'creator_application_modal') {
+                const reviewChannel = await client.channels.fetch(CREATOR_REVIEW_CHANNEL_ID).catch(() => null);
+                if (!reviewChannel) {
+                    return replyToInteraction(interaction, {
+                        content: 'Der Review-Channel konnte nicht erreicht werden.',
+                        ephemeral: true
+                    });
+                }
+
+                const applicationId = Date.now().toString();
+                const application = {
+                    applicationId,
+                    userId: interaction.user.id,
+                    sourceChannelId: interaction.channelId,
+                    accountHandle: interaction.fields.getTextInputValue('creator_handle'),
+                    profileLink: interaction.fields.getTextInputValue('creator_link'),
+                    creatorType: interaction.fields.getTextInputValue('creator_type'),
+                    age: interaction.fields.getTextInputValue('creator_age'),
+                    experience: interaction.fields.getTextInputValue('creator_experience'),
+                    createdAt: new Date().toISOString(),
+                    status: 'pending',
+                    reviewedBy: null,
+                    reviewedAt: null,
+                    reviewReason: ''
+                };
+
+                const reviewMessage = await reviewChannel.send({
+                    embeds: [buildCreatorApplicationReviewEmbed(application)],
+                    components: [buildCreatorApplicationReviewRow(applicationId, false)]
+                }).catch(() => null);
+
+                if (!reviewMessage) {
+                    return replyToInteraction(interaction, {
+                        content: 'Die Bewerbung konnte nicht an das Mod-Team gesendet werden.',
+                        ephemeral: true
+                    });
+                }
+
+                application.reviewChannelId = reviewMessage.channelId;
+                application.reviewMessageId = reviewMessage.id;
+                mockupStore.creatorApplications[applicationId] = application;
+                saveMockupStore();
+
+                return replyToInteraction(interaction, {
+                    content: 'Deine Bewerbung wurde an das Mod-Team weitergeleitet.',
                     ephemeral: true
                 });
             }
@@ -3980,6 +4540,45 @@ client.on('interactionCreate', async interaction => {
                 });
                 return replyToInteraction(interaction, {
                     content: 'Dein ISO wurde gepostet.',
+                    ephemeral: true
+                });
+            }
+
+            if (interaction.customId.startsWith('creatorapp_decline_modal_')) {
+                if (!memberCanReviewCreatorApplication(interaction.member)) {
+                    return replyToInteraction(interaction, {
+                        content: 'Nur Owner oder Moderatoren koennen Creator-Bewerbungen pruefen.',
+                        ephemeral: true
+                    });
+                }
+
+                const applicationId = interaction.customId.replace('creatorapp_decline_modal_', '');
+                const application = getCreatorApplication(applicationId);
+                if (!application) {
+                    return replyToInteraction(interaction, {
+                        content: 'Diese Creator-Bewerbung wurde nicht gefunden.',
+                        ephemeral: true
+                    });
+                }
+
+                if ((application.status || 'pending') !== 'pending') {
+                    return replyToInteraction(interaction, {
+                        content: 'Diese Bewerbung wurde bereits geprueft.',
+                        ephemeral: true
+                    });
+                }
+
+                application.status = 'declined';
+                application.reviewedBy = interaction.user.id;
+                application.reviewedAt = new Date().toISOString();
+                application.reviewReason = interaction.fields.getTextInputValue('decline_reason');
+                saveMockupStore();
+
+                await updateCreatorApplicationReviewMessage(application);
+                await sendCreatorApplicationResultDm(application, false, application.reviewReason);
+
+                return replyToInteraction(interaction, {
+                    content: 'Die Bewerbung wurde abgelehnt und der Grund verschickt.',
                     ephemeral: true
                 });
             }
