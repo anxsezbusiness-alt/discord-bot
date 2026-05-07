@@ -6,7 +6,8 @@ Dieser Bot enthaelt jetzt:
 - Private AI-Channels pro User
 - Token-Guthaben pro Discord-User
 - Token-Gutschrift von Vercel nach Stripe-Zahlung
-- OpenAI API Verbindung
+- AI API Verbindung
+- Verification-Panel mit Unverified/Verified Rollen
 
 ## Railway Variables
 
@@ -34,20 +35,26 @@ Diese Variablen in Railway beim Bot setzen:
   - `https://www.veloo.org/vip.html#ai-tokens`
 - `AI_STARTING_TOKENS`
   - `0`
+- `VERIFICATION_CHANNEL_ID`
+  - `1492469888759890131`
+- `UNVERIFIED_ROLE_ID`
+  - `1492469864701493278`
+- `VERIFIED_ROLE_ID`
+  - `1492463758864416829`
 
 ## Token-Abrechnung
 
 Der Bot zieht nicht mehr pauschal 1 Token pro Frage ab.
-Nach jeder OpenAI-Antwort wird `usage.total_tokens` aus der OpenAI API genutzt.
+Nach jeder AI-Antwort wird `usage.total_tokens` aus der AI API genutzt.
 Das bedeutet: Eingabe + Antwort werden zusammen vom Guthaben abgezogen.
 
 Beispiel:
 
-- OpenAI meldet `input_tokens=120`
-- OpenAI meldet `output_tokens=430`
+- Die AI API meldet `input_tokens=120`
+- Die AI API meldet `output_tokens=430`
 - Der Bot zieht `550` AI Tokens ab
 
-Wichtig: Wenn Website-Token exakt OpenAI-Token sind, sind Pakete wie 100 / 500 / 1000 Tokens sehr klein.
+Wichtig: Wenn Website-Token exakt AI-Token sind, sind Pakete wie 100 / 500 / 1000 Tokens sehr klein.
 Eine normale Antwort kann schnell mehrere hundert bis ueber tausend Tokens verbrauchen.
 
 Optional:

@@ -65,6 +65,9 @@ const COMMUNITY_COOKED_CHANNEL_ID = process.env.COMMUNITY_COOKED_CHANNEL_ID || '
 const COMMUNITY_COOKED_CRON = process.env.COMMUNITY_COOKED_CRON || '0 0 1 * *';
 const MAIN_CHANNEL_ID = process.env.MAIN_CHANNEL_ID || '1492261145078272230';
 const REACTION_ROLE_CHANNEL_ID = process.env.REACTION_ROLE_CHANNEL_ID || '1492255500434407631';
+const VERIFICATION_CHANNEL_ID = process.env.VERIFICATION_CHANNEL_ID || '1492469888759890131';
+const UNVERIFIED_ROLE_ID = process.env.UNVERIFIED_ROLE_ID || '1492469864701493278';
+const VERIFIED_ROLE_ID = process.env.VERIFIED_ROLE_ID || '1492463758864416829';
 const AI_PANEL_CHANNEL_ID = process.env.AI_PANEL_CHANNEL_ID || '1501914878716280833';
 const AI_CHANNEL_CATEGORY_ID = process.env.AI_CHANNEL_CATEGORY_ID || null;
 const AI_TOKEN_STORE_PATH = process.env.AI_TOKEN_STORE_PATH || path.join(__dirname, 'ai-token-store.json');
@@ -101,6 +104,7 @@ const SELL_PANEL_TITLE = 'VELOO ARCHIVE / MARKT';
 const TEAM_PANEL_TITLE = 'VELOO ARCHIVE / TEAMFINDER';
 const WELCOME_PANEL_TITLE = 'WILLKOMMEN BEI VELOO ARCHIVE';
 const ROLE_PANEL_TITLE = 'VELOO&YESTERA / ROLLEN';
+const VERIFICATION_PANEL_TITLE = '✅ VELOO&YESTERA VERIFICATION';
 const RULES_PANEL_TITLE = '📜 VELOO&YESTERA REGELN';
 const COOPERATION_PANEL_TITLE = '🤝 COOPERATIONS';
 const CREATOR_PANEL_TITLE = '🎥 CREATOR BEWERBUNG';
@@ -2193,20 +2197,110 @@ function getAiTokenBudget(question, username, balance) {
     };
 }
 
-function buildAiMainPanel() {
+function buildVerificationPanel() {
     const embed = buildPanelEmbed({
-        title: 'VELOO&YESTERA AI',
-        description: 'Moechtest du einen privaten Chat mit der AI eroeffnen?',
+        title: VERIFICATION_PANEL_TITLE,
+        description: '👋 Willkommen bei VELOO&YESTERA. Verifiziere dich kurz, dann wird dein Server-Zugang freigeschaltet.',
         color: '#6a7dff',
         fields: [
             {
-                name: 'Privater Channel',
+                name: '🛡️ Warum?',
+                value: 'So bleibt der Server sauber und neue Mitglieder bekommen direkt die richtige Rolle.',
+                inline: false
+            },
+            {
+                name: '✅ Was passiert danach?',
+                value: `Du bekommst die Verified-Rolle <@&${VERIFIED_ROLE_ID}> und die Unverified-Rolle wird entfernt.`,
+                inline: false
+            }
+        ],
+        footerText: 'VELOO&YESTERA // VERIFY'
+    });
+
+    const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+            .setCustomId('verify_member')
+            .setLabel('✅ Verifizieren')
+            .setStyle(ButtonStyle.Success)
+    );
+
+    return { embeds: [embed], components: [row] };
+}
+
+async function sendVerificationPanel() {
+    const verificationChannel = await client.channels.fetch(VERIFICATION_CHANNEL_ID).catch(() => null);
+    if (!verificationChannel) {
+        return;
+    }
+
+    await deletePanelMessages(verificationChannel, VERIFICATION_PANEL_TITLE);
+    await verificationChannel.send(buildVerificationPanel());
+}
+
+async function grantJoinVerificationRole(member) {
+    if (!UNVERIFIED_ROLE_ID || member.roles.cache.has(UNVERIFIED_ROLE_ID)) {
+        return;
+    }
+
+    await member.roles.add(UNVERIFIED_ROLE_ID).catch(error => {
+        console.error(`Unverified role could not be added to ${member.user.tag}:`, error.message);
+    });
+}
+
+async function handleVerifyButton(interaction) {
+    if (!interaction.inGuild()) {
+        return replyToInteraction(interaction, {
+            content: 'Diese Verifizierung funktioniert nur im Server.',
+            ephemeral: true
+        });
+    }
+
+    await interaction.guild.roles.fetch().catch(() => null);
+    const member = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
+    if (!member) {
+        return replyToInteraction(interaction, {
+            content: 'Dein Mitgliedsprofil konnte nicht geladen werden.',
+            ephemeral: true
+        });
+    }
+
+    await member.roles.add(VERIFIED_ROLE_ID).catch(error => {
+        console.error(`Verified role could not be added to ${interaction.user.tag}:`, error.message);
+    });
+
+    if (!member.roles.cache.has(VERIFIED_ROLE_ID)) {
+        return replyToInteraction(interaction, {
+            content: 'Die Verified-Rolle konnte nicht gesetzt werden. Bitte melde dich bei einem Mod.',
+            ephemeral: true
+        });
+    }
+
+    if (UNVERIFIED_ROLE_ID && member.roles.cache.has(UNVERIFIED_ROLE_ID)) {
+        await member.roles.remove(UNVERIFIED_ROLE_ID).catch(error => {
+            console.error(`Unverified role could not be removed from ${interaction.user.tag}:`, error.message);
+        });
+    }
+
+    return replyToInteraction(interaction, {
+        content: '✅ Du bist verifiziert. Willkommen bei VELOO&YESTERA.',
+        ephemeral: true
+    });
+}
+
+function buildAiMainPanel() {
+    const embed = buildPanelEmbed({
+        title: '✨ VELOO&YESTERA AI',
+        description: '💬 Moechtest du einen privaten Chat mit der AI eroeffnen?',
+        color: '#6a7dff',
+        fields: [
+            {
+                name: '🔒 Privater Channel',
                 value: 'Nur du, der Bot und Owner sehen deinen AI-Chat.',
                 inline: false
             },
             {
-                name: 'Tokens',
-                value: 'Abgerechnet wird nach echter OpenAI-Nutzung: Eingabe + Antwort. Tokens bekommst du im VIP-Abo oder ueber Token-Packs.',
+                name: '🪙 AI Tokens',
+                value: 'Abgerechnet wird nach echter AI-Nutzung: Frage + Antwort. Tokens bekommst du im VIP-Abo oder ueber Token-Packs.',
                 inline: false
             }
         ],
@@ -2216,7 +2310,7 @@ function buildAiMainPanel() {
     const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
             .setCustomId('open_ai_chat')
-            .setLabel('AI Chat eroeffnen')
+            .setLabel('✨ AI Chat eroeffnen')
             .setStyle(ButtonStyle.Primary)
     );
 
@@ -2226,22 +2320,22 @@ function buildAiMainPanel() {
 function buildAiChatPanel(userId) {
     const record = getAiUserRecord(userId);
     const embed = buildPanelEmbed({
-        title: 'Was moechtest du mich fragen?',
-        description: 'Stell deine Frage ueber den Button. Die Antwort erscheint direkt hier im privaten Channel.',
+        title: '💬 Was moechtest du mich fragen?',
+        description: '✨ Stell deine Frage ueber den Button. Die Antwort erscheint direkt hier im privaten Channel.',
         color: '#6a7dff',
         fields: [
             {
-                name: 'Deine Tokens',
+                name: '🪙 Deine Tokens',
                 value: `${Number(record.balance || 0)} verfuegbar`,
                 inline: true
             },
             {
-                name: 'Kosten',
-                value: 'Echte OpenAI Tokens pro Antwort',
+                name: '⚡ Kosten',
+                value: 'Echte AI Tokens pro Antwort',
                 inline: true
             },
             {
-                name: 'Tokens kaufen',
+                name: '🛒 Tokens kaufen',
                 value: AI_BUY_TOKENS_URL,
                 inline: false
             }
@@ -2251,16 +2345,16 @@ function buildAiChatPanel(userId) {
 
     const askButton = new ButtonBuilder()
         .setCustomId('ask_ai_question')
-        .setLabel('Frage stellen')
+        .setLabel('💬 Frage stellen')
         .setStyle(ButtonStyle.Primary);
 
     const refreshButton = new ButtonBuilder()
         .setCustomId('ai_refresh_balance')
-        .setLabel('Tokens aktualisieren')
+        .setLabel('🔄 Tokens aktualisieren')
         .setStyle(ButtonStyle.Secondary);
 
     const buyButton = new ButtonBuilder()
-        .setLabel('Tokens kaufen')
+        .setLabel('🛒 Tokens kaufen')
         .setStyle(ButtonStyle.Link)
         .setURL(AI_BUY_TOKENS_URL);
 
@@ -2274,7 +2368,7 @@ async function sendAiPanel() {
         return;
     }
 
-    await deletePanelMessages(aiPanelChannel, 'VELOO&YESTERA AI');
+    await deletePanelMessages(aiPanelChannel, ['VELOO&YESTERA AI', '✨ VELOO&YESTERA AI']);
     await aiPanelChannel.send(buildAiMainPanel());
 }
 
@@ -2411,7 +2505,7 @@ async function askOpenAi(question, username, maxOutputTokens) {
 
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
-        throw new Error(payload.error?.message || 'OpenAI Anfrage fehlgeschlagen.');
+        throw new Error(payload.error?.message || 'AI Anfrage fehlgeschlagen.');
     }
 
     return {
@@ -2487,18 +2581,18 @@ async function handleAiQuestionSubmit(interaction) {
 
         const updatedRecord = getAiUserRecord(interaction.user.id);
         const embed = new EmbedBuilder()
-            .setTitle('AI Antwort')
+            .setTitle('✨ AI Antwort')
             .setDescription(result.answer.slice(0, 3900))
             .addFields(
                 {
-                    name: 'Deine Frage',
+                    name: '💬 Deine Frage',
                     value: question.slice(0, 900),
                     inline: false
                 },
                 {
-                    name: 'Abrechnung',
+                    name: '🪙 Abrechnung',
                     value:
-                        `${usage.totalTokens} OpenAI Tokens abgezogen` +
+                        `${usage.totalTokens} AI Tokens abgezogen` +
                         (usage.inputTokens || usage.outputTokens
                             ? ` (${usage.inputTokens} Input / ${usage.outputTokens} Output)`
                             : ''),
@@ -2512,7 +2606,7 @@ async function handleAiQuestionSubmit(interaction) {
         await interaction.editReply({ embeds: [embed] });
         await upsertAiChatPanel(interaction.channel, interaction.user.id).catch(() => null);
     } catch (error) {
-        console.error('OpenAI answer failed:', error.message);
+        console.error('AI answer failed:', error.message);
         await interaction.editReply('Die AI konnte gerade nicht antworten. Es wurden keine Tokens abgezogen.');
     }
 }
@@ -3043,6 +3137,12 @@ async function sendCreatorApplicationPanel() {
 
 async function refreshPanels() {
     console.log(`[${new Date().toLocaleTimeString('de-DE', { timeZone: TIMEZONE })}] Refreshing panels...`);
+
+    try {
+        await sendVerificationPanel();
+    } catch (error) {
+        console.error('Verification channel error:', error.message);
+    }
 
     try {
         await sendSellPanel();
@@ -4089,6 +4189,8 @@ client.on('guildMemberAdd', async member => {
         return;
     }
 
+    await grantJoinVerificationRole(member);
+
     recordUserActivity(member.id, 'join_server', {
         displayName: getMemberDisplayName(member, member.user)
     });
@@ -4096,7 +4198,7 @@ client.on('guildMemberAdd', async member => {
     const welcomeEmbeds = buildWelcomeEmbeds(member);
 
     await member.send({
-        content: `Willkommen auf ${member.guild.name}. Hier ist dein Startguide.`,
+        content: `Willkommen auf ${member.guild.name}. Bitte verifiziere dich kurz in <#${VERIFICATION_CHANNEL_ID}>. Danach bekommst du Zugriff auf den Server.`,
         embeds: welcomeEmbeds,
         components: buildWelcomeComponents()
     }).catch(error => {
@@ -4238,6 +4340,10 @@ client.on('interactionCreate', async interaction => {
         }
 
         if (interaction.isButton()) {
+            if (interaction.customId === 'verify_member') {
+                return handleVerifyButton(interaction);
+            }
+
             if (interaction.customId === 'open_ai_chat') {
                 return handleOpenAiChatButton(interaction);
             }
@@ -4245,12 +4351,12 @@ client.on('interactionCreate', async interaction => {
             if (interaction.customId === 'ask_ai_question') {
                 const modal = new ModalBuilder()
                     .setCustomId('ai_question_modal')
-                    .setTitle('Ask AI');
+                    .setTitle('✨ Ask AI');
 
                 const questionInput = new TextInputBuilder()
                     .setCustomId('ai_question')
                     .setLabel('Was moechtest du mich fragen?')
-                    .setPlaceholder('Schreibe deine Frage hier...')
+                    .setPlaceholder('💬 Schreibe deine Frage hier...')
                     .setStyle(TextInputStyle.Paragraph)
                     .setRequired(true);
 
