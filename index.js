@@ -69,10 +69,11 @@ const AI_PANEL_CHANNEL_ID = process.env.AI_PANEL_CHANNEL_ID || '1501914878716280
 const AI_CHANNEL_CATEGORY_ID = process.env.AI_CHANNEL_CATEGORY_ID || null;
 const AI_TOKEN_STORE_PATH = process.env.AI_TOKEN_STORE_PATH || path.join(__dirname, 'ai-token-store.json');
 const AI_BUY_TOKENS_URL = process.env.AI_BUY_TOKENS_URL || 'https://www.veloo.org/vip.html#ai-tokens';
-const AI_TOKENS_PER_QUESTION = Number(process.env.AI_TOKENS_PER_QUESTION || 1);
 const AI_STARTING_TOKENS = Number(process.env.AI_STARTING_TOKENS || 0);
 const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-5.4-mini';
 const OPENAI_MAX_OUTPUT_TOKENS = Number(process.env.OPENAI_MAX_OUTPUT_TOKENS || 900);
+const AI_MIN_OUTPUT_TOKENS = Number(process.env.AI_MIN_OUTPUT_TOKENS || 32);
+const AI_TOKEN_SAFETY_BUFFER = Number(process.env.AI_TOKEN_SAFETY_BUFFER || 16);
 const BOT_SYNC_SECRET = process.env.BOT_SYNC_SECRET || null;
 const BOT_HTTP_PORT = Number(process.env.PORT || process.env.BOT_HTTP_PORT || 3000);
 const MODERATOR_ROLE_ID = process.env.MODERATOR_ROLE_ID || null;
@@ -88,6 +89,8 @@ const MAIN_REPLY_COOLDOWN_MS = Number(process.env.MAIN_REPLY_COOLDOWN_MS || 3000
 const TRUSTED_SELLER_ROLE_ID = process.env.TRUSTED_SELLER_ROLE_ID || null;
 const TRUSTED_SELLER_ROLE_NAME = process.env.TRUSTED_SELLER_ROLE_NAME || '𝐓𝐫𝐮𝐬𝐭𝐞𝐝𝐒𝐞𝐥𝐥𝐞𝐫';
 const TRUSTED_SELLER_MIN_SALES = Number(process.env.TRUSTED_SELLER_MIN_SALES || 5);
+const OPENAI_INSTRUCTIONS =
+    'Du bist die VELOO&YESTERA AI im Discord. Antworte hilfreich, direkt und freundlich auf Deutsch. Halte Antworten klar und praktisch.';
 const OWNER_ROLE_ID = process.env.OWNER_ROLE_ID || null;
 const OWNER_ROLE_NAME = process.env.OWNER_ROLE_NAME || '𝘖𝘸𝘯𝘦𝘳';
 const CONTENT_CREATOR_ROLE_ID = process.env.CONTENT_CREATOR_ROLE_ID || null;
@@ -2045,17 +2048,18 @@ async function replyToInteraction(interaction, payload) {
 function loadAiTokenStore() {
     try {
         if (!fs.existsSync(AI_TOKEN_STORE_PATH)) {
-            return { users: {}, grants: [] };
+            return { users: {}, grants: [], usageEvents: [] };
         }
 
         const parsed = JSON.parse(fs.readFileSync(AI_TOKEN_STORE_PATH, 'utf8'));
         return {
             users: parsed.users || {},
-            grants: Array.isArray(parsed.grants) ? parsed.grants : []
+            grants: Array.isArray(parsed.grants) ? parsed.grants : [],
+            usageEvents: Array.isArray(parsed.usageEvents) ? parsed.usageEvents : []
         };
     } catch (error) {
         console.error('AI token store could not be loaded:', error.message);
-        return { users: {}, grants: [] };
+        return { users: {}, grants: [], usageEvents: [] };
     }
 }
 
@@ -2069,6 +2073,8 @@ function getAiUserRecord(userId) {
             balance: AI_STARTING_TOKENS,
             totalGranted: AI_STARTING_TOKENS,
             totalUsed: 0,
+            totalInputTokens: 0,
+            totalOutputTokens: 0,
             channelId: null,
             panelMessageId: null,
             createdAt: new Date().toISOString()
@@ -2099,7 +2105,7 @@ function addAiTokens(userId, amount, reason = 'manual') {
     return record;
 }
 
-function spendAiTokens(userId, amount) {
+function spendAiTokens(userId, amount, usage = {}) {
     const cleanAmount = Math.max(1, Math.floor(Number(amount || 1)));
     const record = getAiUserRecord(userId);
 
@@ -2109,9 +2115,82 @@ function spendAiTokens(userId, amount) {
 
     record.balance = Number(record.balance || 0) - cleanAmount;
     record.totalUsed = Number(record.totalUsed || 0) + cleanAmount;
+    record.totalInputTokens = Number(record.totalInputTokens || 0) + Number(usage.inputTokens || 0);
+    record.totalOutputTokens = Number(record.totalOutputTokens || 0) + Number(usage.outputTokens || 0);
     record.updatedAt = new Date().toISOString();
+    aiTokenStore.usageEvents.push({
+        userId,
+        amount: cleanAmount,
+        inputTokens: Number(usage.inputTokens || 0),
+        outputTokens: Number(usage.outputTokens || 0),
+        model: usage.model || OPENAI_MODEL,
+        reason: usage.reason || 'openai_usage',
+        createdAt: new Date().toISOString()
+    });
     saveAiTokenStore();
     return true;
+}
+
+function estimateTextTokens(text) {
+    const cleanText = String(text || '').trim();
+    if (!cleanText) {
+        return 0;
+    }
+
+    return Math.max(1, Math.ceil(cleanText.length / 4));
+}
+
+function estimateAiInputTokens(question, username) {
+    return (
+        estimateTextTokens(OPENAI_INSTRUCTIONS) +
+        estimateTextTokens(`${username}: ${question}`) +
+        12
+    );
+}
+
+function getOpenAiUsage(payload) {
+    const usage = payload?.usage || {};
+    const inputTokens = Number(
+        usage.input_tokens ||
+        usage.prompt_tokens ||
+        usage.inputTokens ||
+        0
+    );
+    const outputTokens = Number(
+        usage.output_tokens ||
+        usage.completion_tokens ||
+        usage.outputTokens ||
+        0
+    );
+    const totalTokens = Number(
+        usage.total_tokens ||
+        usage.totalTokens ||
+        inputTokens + outputTokens ||
+        0
+    );
+
+    return {
+        inputTokens,
+        outputTokens,
+        totalTokens
+    };
+}
+
+function getAiTokenBudget(question, username, balance) {
+    const availableTokens = Math.max(0, Math.floor(Number(balance || 0)));
+    const estimatedInputTokens = estimateAiInputTokens(question, username);
+    const minimumRequired = estimatedInputTokens + AI_MIN_OUTPUT_TOKENS + AI_TOKEN_SAFETY_BUFFER;
+    const maxOutputTokens = Math.min(
+        OPENAI_MAX_OUTPUT_TOKENS,
+        Math.max(0, availableTokens - estimatedInputTokens - AI_TOKEN_SAFETY_BUFFER)
+    );
+
+    return {
+        availableTokens,
+        estimatedInputTokens,
+        minimumRequired,
+        maxOutputTokens: Math.floor(maxOutputTokens)
+    };
 }
 
 function buildAiMainPanel() {
@@ -2127,7 +2206,7 @@ function buildAiMainPanel() {
             },
             {
                 name: 'Tokens',
-                value: `Eine Frage kostet ${AI_TOKENS_PER_QUESTION} Token. Tokens bekommst du im VIP-Abo oder ueber Token-Packs.`,
+                value: 'Abgerechnet wird nach echter OpenAI-Nutzung: Eingabe + Antwort. Tokens bekommst du im VIP-Abo oder ueber Token-Packs.',
                 inline: false
             }
         ],
@@ -2158,7 +2237,7 @@ function buildAiChatPanel(userId) {
             },
             {
                 name: 'Kosten',
-                value: `${AI_TOKENS_PER_QUESTION} Token pro Frage`,
+                value: 'Echte OpenAI Tokens pro Antwort',
                 inline: true
             },
             {
@@ -2300,11 +2379,12 @@ function extractOpenAiText(payload) {
     return textParts.join('\n').trim();
 }
 
-async function askOpenAi(question, username) {
+async function askOpenAi(question, username, maxOutputTokens) {
     if (!process.env.OPENAI_API_KEY) {
         throw new Error('OPENAI_API_KEY fehlt in Railway.');
     }
 
+    const outputLimit = Math.max(16, Math.min(OPENAI_MAX_OUTPUT_TOKENS, Math.floor(Number(maxOutputTokens || OPENAI_MAX_OUTPUT_TOKENS))));
     const response = await fetch('https://api.openai.com/v1/responses', {
         method: 'POST',
         headers: {
@@ -2313,9 +2393,8 @@ async function askOpenAi(question, username) {
         },
         body: JSON.stringify({
             model: OPENAI_MODEL,
-            max_output_tokens: OPENAI_MAX_OUTPUT_TOKENS,
-            instructions:
-                'Du bist die VELOO&YESTERA AI im Discord. Antworte hilfreich, direkt und freundlich auf Deutsch. Halte Antworten klar und praktisch.',
+            max_output_tokens: outputLimit,
+            instructions: OPENAI_INSTRUCTIONS,
             input: [
                 {
                     role: 'user',
@@ -2335,7 +2414,11 @@ async function askOpenAi(question, username) {
         throw new Error(payload.error?.message || 'OpenAI Anfrage fehlgeschlagen.');
     }
 
-    return extractOpenAiText(payload) || 'Ich konnte gerade keine Antwort erzeugen.';
+    return {
+        answer: extractOpenAiText(payload) || 'Ich konnte gerade keine Antwort erzeugen.',
+        usage: getOpenAiUsage(payload),
+        model: payload.model || OPENAI_MODEL
+    };
 }
 
 async function handleOpenAiChatButton(interaction) {
@@ -2361,39 +2444,76 @@ async function handleAiQuestionSubmit(interaction) {
         });
     }
 
-    if (Number(record.balance || 0) < AI_TOKENS_PER_QUESTION) {
+    const budget = getAiTokenBudget(question, interaction.user.username, record.balance);
+
+    if (budget.maxOutputTokens < AI_MIN_OUTPUT_TOKENS) {
         return replyToInteraction(interaction, {
-            content: `Du hast keine AI Tokens mehr. Tokens kaufen: ${AI_BUY_TOKENS_URL}`,
+            content:
+                `Du hast nicht genug AI Tokens fuer diese Frage. ` +
+                `Du brauchst ungefaehr ${budget.minimumRequired} Tokens Startguthaben. ` +
+                `Aktuell: ${budget.availableTokens}. Tokens kaufen: ${AI_BUY_TOKENS_URL}`,
             ephemeral: true
         });
     }
 
     await interaction.deferReply();
 
-    if (!spendAiTokens(interaction.user.id, AI_TOKENS_PER_QUESTION)) {
-        return interaction.editReply(`Du hast keine AI Tokens mehr. Tokens kaufen: ${AI_BUY_TOKENS_URL}`);
-    }
-
     try {
-        const answer = await askOpenAi(question, interaction.user.username);
+        const result = await askOpenAi(question, interaction.user.username, budget.maxOutputTokens);
+        const fallbackUsage = {
+            inputTokens: budget.estimatedInputTokens,
+            outputTokens: estimateTextTokens(result.answer),
+            totalTokens: budget.estimatedInputTokens + estimateTextTokens(result.answer)
+        };
+        const usage = result.usage.totalTokens > 0 ? result.usage : fallbackUsage;
+
+        if (!spendAiTokens(interaction.user.id, usage.totalTokens, {
+            inputTokens: usage.inputTokens,
+            outputTokens: usage.outputTokens,
+            model: result.model,
+            reason: 'openai_response_usage'
+        })) {
+            console.error(
+                `AI token charge exceeded balance for ${interaction.user.id}: ` +
+                `${usage.totalTokens} used, ${getAiUserRecord(interaction.user.id).balance} available.`
+            );
+            spendAiTokens(interaction.user.id, getAiUserRecord(interaction.user.id).balance, {
+                inputTokens: usage.inputTokens,
+                outputTokens: usage.outputTokens,
+                model: result.model,
+                reason: 'openai_response_usage_partial'
+            });
+        }
+
+        const updatedRecord = getAiUserRecord(interaction.user.id);
         const embed = new EmbedBuilder()
             .setTitle('AI Antwort')
-            .setDescription(answer.slice(0, 3900))
-            .addFields({
-                name: 'Deine Frage',
-                value: question.slice(0, 900),
-                inline: false
-            })
+            .setDescription(result.answer.slice(0, 3900))
+            .addFields(
+                {
+                    name: 'Deine Frage',
+                    value: question.slice(0, 900),
+                    inline: false
+                },
+                {
+                    name: 'Abrechnung',
+                    value:
+                        `${usage.totalTokens} OpenAI Tokens abgezogen` +
+                        (usage.inputTokens || usage.outputTokens
+                            ? ` (${usage.inputTokens} Input / ${usage.outputTokens} Output)`
+                            : ''),
+                    inline: false
+                }
+            )
             .setColor('#6a7dff')
-            .setFooter({ text: `Tokens uebrig: ${getAiUserRecord(interaction.user.id).balance}` })
+            .setFooter({ text: `Tokens uebrig: ${updatedRecord.balance}` })
             .setTimestamp();
 
         await interaction.editReply({ embeds: [embed] });
         await upsertAiChatPanel(interaction.channel, interaction.user.id).catch(() => null);
     } catch (error) {
-        addAiTokens(interaction.user.id, AI_TOKENS_PER_QUESTION, 'ai_refund');
         console.error('OpenAI answer failed:', error.message);
-        await interaction.editReply('Die AI konnte gerade nicht antworten. Dein Token wurde erstattet.');
+        await interaction.editReply('Die AI konnte gerade nicht antworten. Es wurden keine Tokens abgezogen.');
     }
 }
 

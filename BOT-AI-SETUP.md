@@ -20,16 +20,35 @@ Diese Variablen in Railway beim Bot setzen:
   - Empfehlung: `gpt-5.4-mini`
 - `OPENAI_MAX_OUTPUT_TOKENS`
   - Empfehlung: `900`
+- `AI_MIN_OUTPUT_TOKENS`
+  - Empfehlung: `32`
+  - Mindest-Spielraum fuer eine Antwort, damit sehr kleine Restguthaben nicht sofort eine teure Anfrage starten
+- `AI_TOKEN_SAFETY_BUFFER`
+  - Empfehlung: `16`
+  - kleiner Puffer, weil der Bot die Eingabe vor der Anfrage nur schaetzen kann
 - `BOT_SYNC_SECRET`
   - langer geheimer Text, exakt gleich wie in Vercel
 - `AI_PANEL_CHANNEL_ID`
   - `1501914878716280833`
 - `AI_BUY_TOKENS_URL`
   - `https://www.veloo.org/vip.html#ai-tokens`
-- `AI_TOKENS_PER_QUESTION`
-  - `1`
 - `AI_STARTING_TOKENS`
   - `0`
+
+## Token-Abrechnung
+
+Der Bot zieht nicht mehr pauschal 1 Token pro Frage ab.
+Nach jeder OpenAI-Antwort wird `usage.total_tokens` aus der OpenAI API genutzt.
+Das bedeutet: Eingabe + Antwort werden zusammen vom Guthaben abgezogen.
+
+Beispiel:
+
+- OpenAI meldet `input_tokens=120`
+- OpenAI meldet `output_tokens=430`
+- Der Bot zieht `550` AI Tokens ab
+
+Wichtig: Wenn Website-Token exakt OpenAI-Token sind, sind Pakete wie 100 / 500 / 1000 Tokens sehr klein.
+Eine normale Antwort kann schnell mehrere hundert bis ueber tausend Tokens verbrauchen.
 
 Optional:
 
