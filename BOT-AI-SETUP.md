@@ -8,6 +8,7 @@ Dieser Bot enthaelt jetzt:
 - Token-Gutschrift von Vercel nach Stripe-Zahlung
 - AI API Verbindung
 - Verification-Panel mit Unverified/Verified Rollen
+- VIP-Rolle wird ueber `/api/revoke-vip` entfernt, wenn Stripe ein gekuendigtes oder abgelaufenes Abo meldet
 
 ## Railway Variables
 
@@ -29,6 +30,8 @@ Diese Variablen in Railway beim Bot setzen:
   - kleiner Puffer, weil der Bot die Eingabe vor der Anfrage nur schaetzen kann
 - `BOT_SYNC_SECRET`
   - langer geheimer Text, exakt gleich wie in Vercel
+- `GUILD_ID`
+  - deine Server-ID, empfohlen fuer sichere VIP-Entfernung
 - `AI_PANEL_CHANNEL_ID`
   - `1501914878716280833`
 - `AI_BUY_TOKENS_URL`

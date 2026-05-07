@@ -37,6 +37,7 @@ const SALES_CHANNEL_ID = process.env.SALES_CHANNEL_ID || '1492593772884660224';
 const RULES_CHANNEL_ID = process.env.RULES_CHANNEL_ID || '1492255500434407630';
 const TUTORIAL_CHANNEL_ID = process.env.TUTORIAL_CHANNEL_ID || null;
 const INFO_CHANNEL_ID = process.env.INFO_CHANNEL_ID || null;
+const BOT_GUILD_ID = process.env.GUILD_ID || process.env.DISCORD_GUILD_ID || process.env.SERVER_ID || null;
 
 const VIP_SOURCE_CHANNEL_ID = process.env.VIP_SOURCE_CHANNEL_ID || '1492261103315587354';
 const VIP_ALERT_CHANNEL_ID = process.env.VIP_ALERT_CHANNEL_ID || '1492261194487037952';
@@ -962,6 +963,48 @@ function memberHasVipRole(member) {
     return member.roles.cache.some(role => role.name === VIP_ROLE_NAME);
 }
 
+async function getBotGuild() {
+    if (BOT_GUILD_ID) {
+        return client.guilds.fetch(BOT_GUILD_ID).catch(() => null);
+    }
+
+    return client.guilds.cache.first() || null;
+}
+
+async function removeVipRoleForUser(discordUserId) {
+    const guild = await getBotGuild();
+    if (!guild) {
+        throw new Error('Guild konnte nicht geladen werden.');
+    }
+
+    await guild.roles.fetch().catch(() => null);
+    const vipRole = findRoleByIdOrName(guild, VIP_ROLE_ID, VIP_ROLE_NAME);
+    if (!vipRole) {
+        throw new Error('VIP-Rolle wurde nicht gefunden.');
+    }
+
+    const member = await guild.members.fetch(discordUserId).catch(() => null);
+    if (!member) {
+        return {
+            removed: false,
+            reason: 'member_not_found'
+        };
+    }
+
+    if (!member.roles.cache.has(vipRole.id)) {
+        return {
+            removed: false,
+            reason: 'role_not_present'
+        };
+    }
+
+    await member.roles.remove(vipRole.id);
+    return {
+        removed: true,
+        roleId: vipRole.id
+    };
+}
+
 function memberHasRoleByIdOrName(member, roleId, roleName) {
     if (!member?.roles?.cache) {
         return false;
@@ -1246,38 +1289,34 @@ function isMainReplyOnCooldown(userId, topicKey) {
 function buildMainChannelReply(topicKey) {
     if (topicKey === 'question') {
         return (
-            'Wenn du eine Frage hast, schreib sie einfach direkt hier in den Chat.\n' +
-            `Fuer Start und Infos schau auch in ${getChannelMention(RULES_CHANNEL_ID, 'den Regeln-Bereich')}, ` +
-            `${getChannelMention(TUTORIAL_CHANNEL_ID, 'den Guide-Bereich')} und ` +
-            `${getChannelMention(INFO_CHANNEL_ID, 'den Info-Bereich')}.`
+            'Kurze Frage? Schreib sie direkt hier rein, dann kann die Community helfen.\n' +
+            `Wenn du neu bist: erst ${getChannelMention(VERIFICATION_CHANNEL_ID, 'Verification')}, dann ` +
+            `${getChannelMention(RULES_CHANNEL_ID, 'Regeln')} und Tutorials checken.`
         );
     }
 
     if (topicKey === 'socials') {
         return (
-            `Unsere Socials:\n` +
-            `VELOO TikTok: ${TIKTOK_URL}\n` +
+            `Socials von VELOO&YESTERA:\n` +
+            `TikTok: ${TIKTOK_URL}\n` +
             `${SECONDARY_TIKTOK_LABEL}: ${SECONDARY_TIKTOK_URL}\n` +
             `Instagram: ${INSTAGRAM_HANDLE} - ${INSTAGRAM_URL}\n` +
-            `WhatsApp Channel: ${WHATSAPP_CHANNEL_URL}\n` +
-            `Business-Mail: ${BUSINESS_EMAIL}`
+            `WhatsApp: ${WHATSAPP_CHANNEL_URL}`
         );
     }
 
     if (topicKey === 'contact') {
         return (
-            `Fuer Collabs, Business oder Kontakt:\nMail: ${BUSINESS_EMAIL}\n` +
-            `VELOO TikTok: ${TIKTOK_URL}\n` +
-            `${SECONDARY_TIKTOK_LABEL}: ${SECONDARY_TIKTOK_URL}\n` +
-            `Instagram: ${INSTAGRAM_HANDLE} - ${INSTAGRAM_URL}\n` +
-            `WhatsApp Channel: ${WHATSAPP_CHANNEL_URL}`
+            `Fuer Collabs, Business, Support oder Kontakt:\n` +
+            `Mail: ${BUSINESS_EMAIL}\n` +
+            `Instagram: ${INSTAGRAM_HANDLE} - ${INSTAGRAM_URL}`
         );
     }
 
     if (topicKey === 'sell') {
         return (
-            `Wenn du ein Piece posten oder verkaufen willst, nutze ${getChannelMention(SELL_CHANNEL_ID, '`verkauf`')}.\n` +
-            'Dort klickst du auf das Panel und laedst danach dein Bild mit `done` hoch.'
+            `Pieces verkaufst du ueber ${getChannelMention(SELL_CHANNEL_ID, 'den Verkauf-Channel')}.\n` +
+            'Panel anklicken, Details eintragen, danach genau ein Bild mit `done` senden.'
         );
     }
 
@@ -1291,14 +1330,14 @@ function buildMainChannelReply(topicKey) {
     if (topicKey === 'mockup') {
         return (
             `Mockups kannst du in ${getChannelMention(MOCKUP_CHANNEL_ID, '`mockups`')} posten.\n` +
-            'Dort gibt es ein Panel, Voting und jede Woche einen Gewinner.'
+            'Panel nutzen, Design hochladen und Voting abwarten. Gute Ideen bekommen mehr Sichtbarkeit.'
         );
     }
 
     if (topicKey === 'outfit') {
         return (
             `Deinen Fit kannst du in ${getChannelMention(OUTFIT_CHANNEL_ID, '`fits`')} posten.\n` +
-            'Dort gibt es das Daily Voting und jeden Tag einen Gewinner.'
+            'Dort laeuft Daily Voting. Ein sauberer Fit + gutes Bild bringt dir die besten Chancen.'
         );
     }
 
@@ -1317,17 +1356,31 @@ function buildMainChannelReply(topicKey) {
 
     if (topicKey === 'vip') {
         return (
-            `VIP lohnt sich, weil deine Posts extra hervorgehoben werden.\n` +
-            'VIP-Listings, VIP-Fits und VIP-Mockups bekommen mehr Aufmerksamkeit im Feed.'
+            `VIP hebt deine Listings, Fits, Mockups und ISO-Posts staerker hervor.\n` +
+            'Wichtig: Wenn dein Abo gekuendigt oder abgelaufen ist, entfernt der Bot die VIP-Rolle automatisch.'
+        );
+    }
+
+    if (topicKey === 'ai') {
+        return (
+            `AI nutzt du ueber ${getChannelMention(AI_PANEL_CHANNEL_ID, 'Ask AI')}.\n` +
+            `Oeffne dort deinen privaten AI-Chat. Tokens kaufst du hier: ${AI_BUY_TOKENS_URL}`
+        );
+    }
+
+    if (topicKey === 'verification') {
+        return (
+            `Wenn du neu bist, verifiziere dich bitte in ${getChannelMention(VERIFICATION_CHANNEL_ID, 'Verification')}.\n` +
+            'Danach bekommst du automatisch die Verified-Rolle und Zugriff auf den Server.'
         );
     }
 
     if (topicKey === 'rules') {
         return (
-            `Alles Wichtige findest du hier:\n` +
+            `Alles fuer den Start:\n` +
+            `Verification: ${getChannelMention(VERIFICATION_CHANNEL_ID, 'Verification')}\n` +
             `Regeln: ${getChannelMention(RULES_CHANNEL_ID, 'Regeln')}\n` +
-            `Tutorials: ${getChannelMention(TUTORIAL_CHANNEL_ID, 'Tutorials')}\n` +
-            `Infos: ${getChannelMention(INFO_CHANNEL_ID, 'Infos')}`
+            `Tutorials: ${getChannelMention(TUTORIAL_CHANNEL_ID, 'Tutorials')}`
         );
     }
 
@@ -1396,7 +1449,15 @@ async function handleMainChannelAutoReply(message) {
         },
         {
             key: 'vip',
-            keywords: ['vip', 'highlight', 'hervorgehoben']
+            keywords: ['vip', 'highlight', 'hervorgehoben', 'abo', 'abonnement', 'kuendigen', 'kündigen', 'gekündigt', 'gekuendigt']
+        },
+        {
+            key: 'ai',
+            keywords: ['ask ai', 'ai', 'ki', 'tokens', 'token', 'ai tokens', 'ki tokens', 'frage an ai']
+        },
+        {
+            key: 'verification',
+            keywords: ['verify', 'verified', 'verifizieren', 'verification', 'unverified', 'freischalten']
         },
         {
             key: 'rules',
@@ -3043,15 +3104,16 @@ async function sendRulesMessage() {
 
     const embed = buildPanelEmbed({
         title: RULES_PANEL_TITLE,
-        description: 'Bitte halte den Server sauber, fair und respektvoll. 🤍',
+        description: 'Willkommen bei VELOO&YESTERA. Lies die Regeln kurz durch, dann bleibt der Server sauber, fair und nutzbar.',
         color: '#d9cfbf',
         fields: [
-            { name: '1️⃣ Respekt', value: 'Kein Hate, kein Beleidigen, kein unnötiger Stress.', inline: false },
-            { name: '2️⃣ Kein Spam', value: 'Keine unnötigen Pings, kein Flood und keine Werbung ohne Kontext.', inline: false },
-            { name: '3️⃣ Faire Deals', value: 'Keine Fakes, kein Scam und keine irreführenden Angaben bei Pieces.', inline: false },
-            { name: '4️⃣ Passende Channels', value: 'Poste Fits, Mockups, ISOs und Sales immer in den richtigen Bereich.', inline: false },
-            { name: '5️⃣ Bewerbungen & Reports', value: 'Creator-Bewerbungen und Reports werden vom Mod-Team geprüft.', inline: false },
-            { name: '6️⃣ Mods respektieren', value: 'Entscheidungen vom Team bitte akzeptieren und normal klären.', inline: false }
+            { name: '1. Verifizieren', value: `Neue Mitglieder verifizieren sich zuerst in ${getChannelMention(VERIFICATION_CHANNEL_ID, 'Verification')}. Danach bekommst du Zugriff auf den Server.`, inline: false },
+            { name: '2. Respekt', value: 'Kein Hate, keine Beleidigungen, keine Provokationen. Klaert Diskussionen normal und bleibt fair.', inline: false },
+            { name: '3. Kein Spam', value: 'Keine unnoetigen Pings, kein Flooding, keine Copy-Paste Werbung und keine Eigenwerbung ohne passenden Kontext.', inline: false },
+            { name: '4. Faire Deals', value: 'Keine Fakes, kein Scam, keine irrefuehrenden Angaben. Preise, Zustand, Groesse und Links muessen ehrlich sein.', inline: false },
+            { name: '5. Richtige Channels', value: 'Sales, Fits, Mockups, ISO, Creator und AI gehoeren in ihre eigenen Bereiche. Der Main-Chat bleibt fuer kurze Fragen und Austausch.', inline: false },
+            { name: '6. VIP & AI Tokens', value: 'VIP gilt nur mit aktivem Abo. Wenn ein Abo gekuendigt oder abgelaufen ist, entfernt der Bot die VIP-Rolle automatisch. AI Tokens sind separat nutzbar.', inline: false },
+            { name: '7. Team respektieren', value: 'Mods und Owner pruefen Reports, Bewerbungen und Probleme. Entscheidungen bitte akzeptieren oder ruhig per Ticket/DM klaeren.', inline: false }
         ],
         footerText: 'VELOO&YESTERA // REGELN'
     });
@@ -5428,6 +5490,34 @@ function startBotHttpServer() {
             } catch (error) {
                 console.error('Token grant endpoint failed:', error.message);
                 return sendJsonResponse(response, 500, { error: 'token_grant_failed' });
+            }
+        }
+
+        if (request.method === 'POST' && url.pathname === '/api/revoke-vip') {
+            if (!isAuthorizedBotSync(request)) {
+                return sendJsonResponse(response, 401, { error: 'unauthorized' });
+            }
+
+            try {
+                const payload = await readJsonBody(request);
+                const discordUserId = String(payload.discordUserId || '').trim();
+                const reason = String(payload.reason || 'subscription_inactive').slice(0, 80);
+
+                if (!/^\d{16,25}$/.test(discordUserId)) {
+                    return sendJsonResponse(response, 400, { error: 'invalid_user' });
+                }
+
+                const result = await removeVipRoleForUser(discordUserId);
+                console.log(`VIP revoke sync for ${discordUserId}: ${reason}`, result);
+
+                return sendJsonResponse(response, 200, {
+                    ok: true,
+                    discordUserId,
+                    ...result
+                });
+            } catch (error) {
+                console.error('VIP revoke endpoint failed:', error.message);
+                return sendJsonResponse(response, 500, { error: 'vip_revoke_failed' });
             }
         }
 
