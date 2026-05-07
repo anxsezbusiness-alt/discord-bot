@@ -15,6 +15,7 @@ const {
 } = require('discord.js');
 const cron = require('node-cron');
 const fs = require('node:fs');
+const http = require('node:http');
 const path = require('node:path');
 
 const client = new Client({
@@ -64,6 +65,16 @@ const COMMUNITY_COOKED_CHANNEL_ID = process.env.COMMUNITY_COOKED_CHANNEL_ID || '
 const COMMUNITY_COOKED_CRON = process.env.COMMUNITY_COOKED_CRON || '0 0 1 * *';
 const MAIN_CHANNEL_ID = process.env.MAIN_CHANNEL_ID || '1492261145078272230';
 const REACTION_ROLE_CHANNEL_ID = process.env.REACTION_ROLE_CHANNEL_ID || '1492255500434407631';
+const AI_PANEL_CHANNEL_ID = process.env.AI_PANEL_CHANNEL_ID || '1501914878716280833';
+const AI_CHANNEL_CATEGORY_ID = process.env.AI_CHANNEL_CATEGORY_ID || null;
+const AI_TOKEN_STORE_PATH = process.env.AI_TOKEN_STORE_PATH || path.join(__dirname, 'ai-token-store.json');
+const AI_BUY_TOKENS_URL = process.env.AI_BUY_TOKENS_URL || 'https://www.veloo.org/vip.html#ai-tokens';
+const AI_TOKENS_PER_QUESTION = Number(process.env.AI_TOKENS_PER_QUESTION || 1);
+const AI_STARTING_TOKENS = Number(process.env.AI_STARTING_TOKENS || 0);
+const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-5.4-mini';
+const OPENAI_MAX_OUTPUT_TOKENS = Number(process.env.OPENAI_MAX_OUTPUT_TOKENS || 900);
+const BOT_SYNC_SECRET = process.env.BOT_SYNC_SECRET || null;
+const BOT_HTTP_PORT = Number(process.env.PORT || process.env.BOT_HTTP_PORT || 3000);
 const MODERATOR_ROLE_ID = process.env.MODERATOR_ROLE_ID || null;
 const MODERATOR_ROLE_NAME = process.env.MODERATOR_ROLE_NAME || '𝘔𝘰𝘥𝘦𝘳𝘢𝘵𝘰𝘳';
 const TIKTOK_URL = process.env.TIKTOK_URL || 'https://www.tiktok.com/@velooarchive';
@@ -132,6 +143,7 @@ const alertedVipMessages = new Set();
 const forwardedBrandMessages = new Set();
 const mainChannelReplyCooldowns = new Map();
 let mockupStore = loadMockupStore();
+let aiTokenStore = loadAiTokenStore();
 
 const BRAND_CHANNEL_CONFIGS = [
     { label: 'Nike', keywords: ['nike'], channelId: '1500936023688085515' },
@@ -2030,6 +2042,361 @@ async function replyToInteraction(interaction, payload) {
     return interaction.reply(payload).catch(() => null);
 }
 
+function loadAiTokenStore() {
+    try {
+        if (!fs.existsSync(AI_TOKEN_STORE_PATH)) {
+            return { users: {}, grants: [] };
+        }
+
+        const parsed = JSON.parse(fs.readFileSync(AI_TOKEN_STORE_PATH, 'utf8'));
+        return {
+            users: parsed.users || {},
+            grants: Array.isArray(parsed.grants) ? parsed.grants : []
+        };
+    } catch (error) {
+        console.error('AI token store could not be loaded:', error.message);
+        return { users: {}, grants: [] };
+    }
+}
+
+function saveAiTokenStore() {
+    fs.writeFileSync(AI_TOKEN_STORE_PATH, JSON.stringify(aiTokenStore, null, 2));
+}
+
+function getAiUserRecord(userId) {
+    if (!aiTokenStore.users[userId]) {
+        aiTokenStore.users[userId] = {
+            balance: AI_STARTING_TOKENS,
+            totalGranted: AI_STARTING_TOKENS,
+            totalUsed: 0,
+            channelId: null,
+            panelMessageId: null,
+            createdAt: new Date().toISOString()
+        };
+        saveAiTokenStore();
+    }
+
+    return aiTokenStore.users[userId];
+}
+
+function addAiTokens(userId, amount, reason = 'manual') {
+    const cleanAmount = Math.max(0, Math.floor(Number(amount || 0)));
+    if (!userId || cleanAmount <= 0) {
+        return getAiUserRecord(userId);
+    }
+
+    const record = getAiUserRecord(userId);
+    record.balance = Number(record.balance || 0) + cleanAmount;
+    record.totalGranted = Number(record.totalGranted || 0) + cleanAmount;
+    record.updatedAt = new Date().toISOString();
+    aiTokenStore.grants.push({
+        userId,
+        amount: cleanAmount,
+        reason,
+        createdAt: new Date().toISOString()
+    });
+    saveAiTokenStore();
+    return record;
+}
+
+function spendAiTokens(userId, amount) {
+    const cleanAmount = Math.max(1, Math.floor(Number(amount || 1)));
+    const record = getAiUserRecord(userId);
+
+    if (Number(record.balance || 0) < cleanAmount) {
+        return false;
+    }
+
+    record.balance = Number(record.balance || 0) - cleanAmount;
+    record.totalUsed = Number(record.totalUsed || 0) + cleanAmount;
+    record.updatedAt = new Date().toISOString();
+    saveAiTokenStore();
+    return true;
+}
+
+function buildAiMainPanel() {
+    const embed = buildPanelEmbed({
+        title: 'VELOO&YESTERA AI',
+        description: 'Moechtest du einen privaten Chat mit der AI eroeffnen?',
+        color: '#6a7dff',
+        fields: [
+            {
+                name: 'Privater Channel',
+                value: 'Nur du, der Bot und Owner sehen deinen AI-Chat.',
+                inline: false
+            },
+            {
+                name: 'Tokens',
+                value: `Eine Frage kostet ${AI_TOKENS_PER_QUESTION} Token. Tokens bekommst du im VIP-Abo oder ueber Token-Packs.`,
+                inline: false
+            }
+        ],
+        footerText: 'VELOO&YESTERA // ASK AI'
+    });
+
+    const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+            .setCustomId('open_ai_chat')
+            .setLabel('AI Chat eroeffnen')
+            .setStyle(ButtonStyle.Primary)
+    );
+
+    return { embeds: [embed], components: [row] };
+}
+
+function buildAiChatPanel(userId) {
+    const record = getAiUserRecord(userId);
+    const embed = buildPanelEmbed({
+        title: 'Was moechtest du mich fragen?',
+        description: 'Stell deine Frage ueber den Button. Die Antwort erscheint direkt hier im privaten Channel.',
+        color: '#6a7dff',
+        fields: [
+            {
+                name: 'Deine Tokens',
+                value: `${Number(record.balance || 0)} verfuegbar`,
+                inline: true
+            },
+            {
+                name: 'Kosten',
+                value: `${AI_TOKENS_PER_QUESTION} Token pro Frage`,
+                inline: true
+            },
+            {
+                name: 'Tokens kaufen',
+                value: AI_BUY_TOKENS_URL,
+                inline: false
+            }
+        ],
+        footerText: 'VELOO&YESTERA // PRIVATE AI'
+    });
+
+    const askButton = new ButtonBuilder()
+        .setCustomId('ask_ai_question')
+        .setLabel('Frage stellen')
+        .setStyle(ButtonStyle.Primary);
+
+    const refreshButton = new ButtonBuilder()
+        .setCustomId('ai_refresh_balance')
+        .setLabel('Tokens aktualisieren')
+        .setStyle(ButtonStyle.Secondary);
+
+    const buyButton = new ButtonBuilder()
+        .setLabel('Tokens kaufen')
+        .setStyle(ButtonStyle.Link)
+        .setURL(AI_BUY_TOKENS_URL);
+
+    const row = new ActionRowBuilder().addComponents(askButton, refreshButton, buyButton);
+    return { embeds: [embed], components: [row] };
+}
+
+async function sendAiPanel() {
+    const aiPanelChannel = await client.channels.fetch(AI_PANEL_CHANNEL_ID).catch(() => null);
+    if (!aiPanelChannel) {
+        return;
+    }
+
+    await deletePanelMessages(aiPanelChannel, 'VELOO&YESTERA AI');
+    await aiPanelChannel.send(buildAiMainPanel());
+}
+
+async function getOrCreateAiChannel(interaction) {
+    if (!interaction.inGuild()) {
+        return null;
+    }
+
+    const record = getAiUserRecord(interaction.user.id);
+    const existingChannel = record.channelId
+        ? await interaction.guild.channels.fetch(record.channelId).catch(() => null)
+        : null;
+
+    if (existingChannel) {
+        return existingChannel;
+    }
+
+    const ownerRole = findRoleByIdOrName(interaction.guild, OWNER_ROLE_ID, OWNER_ROLE_NAME);
+    const permissionOverwrites = [
+        {
+            id: interaction.guild.id,
+            deny: [PermissionsBitField.Flags.ViewChannel]
+        },
+        {
+            id: interaction.user.id,
+            allow: [
+                PermissionsBitField.Flags.ViewChannel,
+                PermissionsBitField.Flags.SendMessages,
+                PermissionsBitField.Flags.ReadMessageHistory
+            ]
+        },
+        {
+            id: client.user.id,
+            allow: [
+                PermissionsBitField.Flags.ViewChannel,
+                PermissionsBitField.Flags.SendMessages,
+                PermissionsBitField.Flags.ManageChannels,
+                PermissionsBitField.Flags.ReadMessageHistory
+            ]
+        }
+    ];
+
+    if (ownerRole) {
+        permissionOverwrites.push({
+            id: ownerRole.id,
+            allow: [
+                PermissionsBitField.Flags.ViewChannel,
+                PermissionsBitField.Flags.SendMessages,
+                PermissionsBitField.Flags.ReadMessageHistory
+            ]
+        });
+    }
+
+    const channel = await interaction.guild.channels.create({
+        name: `ai-${interaction.user.username}`.toLowerCase().replace(/[^a-z0-9-]/g, '-').slice(0, 80),
+        type: ChannelType.GuildText,
+        parent: AI_CHANNEL_CATEGORY_ID || undefined,
+        topic: `Private AI fuer ${interaction.user.id}`,
+        permissionOverwrites
+    });
+
+    record.channelId = channel.id;
+    record.updatedAt = new Date().toISOString();
+    saveAiTokenStore();
+    return channel;
+}
+
+async function upsertAiChatPanel(channel, userId) {
+    const record = getAiUserRecord(userId);
+    const payload = buildAiChatPanel(userId);
+    const existingMessage = record.panelMessageId
+        ? await channel.messages.fetch(record.panelMessageId).catch(() => null)
+        : null;
+
+    if (existingMessage) {
+        await existingMessage.edit(payload).catch(() => null);
+        return existingMessage;
+    }
+
+    const message = await channel.send(payload);
+    record.panelMessageId = message.id;
+    record.channelId = channel.id;
+    record.updatedAt = new Date().toISOString();
+    saveAiTokenStore();
+    return message;
+}
+
+function extractOpenAiText(payload) {
+    if (payload.output_text) {
+        return payload.output_text;
+    }
+
+    const textParts = [];
+    for (const item of payload.output || []) {
+        for (const content of item.content || []) {
+            if (content.type === 'output_text' && content.text) {
+                textParts.push(content.text);
+            }
+        }
+    }
+
+    return textParts.join('\n').trim();
+}
+
+async function askOpenAi(question, username) {
+    if (!process.env.OPENAI_API_KEY) {
+        throw new Error('OPENAI_API_KEY fehlt in Railway.');
+    }
+
+    const response = await fetch('https://api.openai.com/v1/responses', {
+        method: 'POST',
+        headers: {
+            authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+            'content-type': 'application/json'
+        },
+        body: JSON.stringify({
+            model: OPENAI_MODEL,
+            max_output_tokens: OPENAI_MAX_OUTPUT_TOKENS,
+            instructions:
+                'Du bist die VELOO&YESTERA AI im Discord. Antworte hilfreich, direkt und freundlich auf Deutsch. Halte Antworten klar und praktisch.',
+            input: [
+                {
+                    role: 'user',
+                    content: [
+                        {
+                            type: 'input_text',
+                            text: `${username}: ${question}`
+                        }
+                    ]
+                }
+            ]
+        })
+    });
+
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+        throw new Error(payload.error?.message || 'OpenAI Anfrage fehlgeschlagen.');
+    }
+
+    return extractOpenAiText(payload) || 'Ich konnte gerade keine Antwort erzeugen.';
+}
+
+async function handleOpenAiChatButton(interaction) {
+    await interaction.deferReply({ ephemeral: true });
+    const channel = await getOrCreateAiChannel(interaction);
+
+    if (!channel) {
+        return interaction.editReply('Der AI-Channel konnte nicht erstellt werden.');
+    }
+
+    await upsertAiChatPanel(channel, interaction.user.id);
+    return interaction.editReply(`Dein privater AI-Chat ist bereit: <#${channel.id}>`);
+}
+
+async function handleAiQuestionSubmit(interaction) {
+    const question = interaction.fields.getTextInputValue('ai_question').trim();
+    const record = getAiUserRecord(interaction.user.id);
+
+    if (!question) {
+        return replyToInteraction(interaction, {
+            content: 'Bitte schreibe eine Frage.',
+            ephemeral: true
+        });
+    }
+
+    if (Number(record.balance || 0) < AI_TOKENS_PER_QUESTION) {
+        return replyToInteraction(interaction, {
+            content: `Du hast keine AI Tokens mehr. Tokens kaufen: ${AI_BUY_TOKENS_URL}`,
+            ephemeral: true
+        });
+    }
+
+    await interaction.deferReply();
+
+    if (!spendAiTokens(interaction.user.id, AI_TOKENS_PER_QUESTION)) {
+        return interaction.editReply(`Du hast keine AI Tokens mehr. Tokens kaufen: ${AI_BUY_TOKENS_URL}`);
+    }
+
+    try {
+        const answer = await askOpenAi(question, interaction.user.username);
+        const embed = new EmbedBuilder()
+            .setTitle('AI Antwort')
+            .setDescription(answer.slice(0, 3900))
+            .addFields({
+                name: 'Deine Frage',
+                value: question.slice(0, 900),
+                inline: false
+            })
+            .setColor('#6a7dff')
+            .setFooter({ text: `Tokens uebrig: ${getAiUserRecord(interaction.user.id).balance}` })
+            .setTimestamp();
+
+        await interaction.editReply({ embeds: [embed] });
+        await upsertAiChatPanel(interaction.channel, interaction.user.id).catch(() => null);
+    } catch (error) {
+        addAiTokens(interaction.user.id, AI_TOKENS_PER_QUESTION, 'ai_refund');
+        console.error('OpenAI answer failed:', error.message);
+        await interaction.editReply('Die AI konnte gerade nicht antworten. Dein Token wurde erstattet.');
+    }
+}
+
 async function deletePanelMessages(channel, titles) {
     const titleList = Array.isArray(titles) ? titles : [titles];
     const messages = await channel.messages.fetch({ limit: 50 });
@@ -2585,6 +2952,12 @@ async function refreshPanels() {
         await sendIsoPanel();
     } catch (error) {
         console.error('ISO channel error:', error.message);
+    }
+
+    try {
+        await sendAiPanel();
+    } catch (error) {
+        console.error('AI panel error:', error.message);
     }
 
     try {
@@ -3745,6 +4118,34 @@ client.on('interactionCreate', async interaction => {
         }
 
         if (interaction.isButton()) {
+            if (interaction.customId === 'open_ai_chat') {
+                return handleOpenAiChatButton(interaction);
+            }
+
+            if (interaction.customId === 'ask_ai_question') {
+                const modal = new ModalBuilder()
+                    .setCustomId('ai_question_modal')
+                    .setTitle('Ask AI');
+
+                const questionInput = new TextInputBuilder()
+                    .setCustomId('ai_question')
+                    .setLabel('Was moechtest du mich fragen?')
+                    .setPlaceholder('Schreibe deine Frage hier...')
+                    .setStyle(TextInputStyle.Paragraph)
+                    .setRequired(true);
+
+                modal.addComponents(new ActionRowBuilder().addComponents(questionInput));
+                return interaction.showModal(modal);
+            }
+
+            if (interaction.customId === 'ai_refresh_balance') {
+                await upsertAiChatPanel(interaction.channel, interaction.user.id);
+                return replyToInteraction(interaction, {
+                    content: `Tokenstand aktualisiert: ${getAiUserRecord(interaction.user.id).balance}`,
+                    ephemeral: true
+                });
+            }
+
             if (
                 [
                     'welcome_rules',
@@ -4360,6 +4761,10 @@ client.on('interactionCreate', async interaction => {
         }
 
         if (interaction.isModalSubmit()) {
+            if (interaction.customId === 'ai_question_modal') {
+                return handleAiQuestionSubmit(interaction);
+            }
+
             if (interaction.customId === 'upload_modal') {
                 activeUploads.set(interaction.user.id, {
                     type: 'sell',
@@ -4713,6 +5118,102 @@ client.on('messageCreate', async message => {
         });
     }
 });
+
+function sendJsonResponse(response, status, data) {
+    response.writeHead(status, {
+        'content-type': 'application/json; charset=utf-8',
+        'cache-control': 'no-store'
+    });
+    response.end(JSON.stringify(data));
+}
+
+function readJsonBody(request) {
+    return new Promise((resolve, reject) => {
+        let body = '';
+        request.on('data', chunk => {
+            body += chunk;
+            if (body.length > 1_000_000) {
+                reject(new Error('Request body too large'));
+                request.destroy();
+            }
+        });
+        request.on('end', () => {
+            if (!body) {
+                resolve({});
+                return;
+            }
+
+            try {
+                resolve(JSON.parse(body));
+            } catch (error) {
+                reject(error);
+            }
+        });
+        request.on('error', reject);
+    });
+}
+
+function isAuthorizedBotSync(request) {
+    if (!BOT_SYNC_SECRET) {
+        return false;
+    }
+
+    const authorization = request.headers.authorization || '';
+    return authorization === `Bearer ${BOT_SYNC_SECRET}`;
+}
+
+function startBotHttpServer() {
+    const server = http.createServer(async (request, response) => {
+        const url = new URL(request.url, `http://${request.headers.host || 'localhost'}`);
+
+        if (request.method === 'GET' && url.pathname === '/health') {
+            return sendJsonResponse(response, 200, { ok: true });
+        }
+
+        if (request.method === 'POST' && url.pathname === '/api/grant-tokens') {
+            if (!isAuthorizedBotSync(request)) {
+                return sendJsonResponse(response, 401, { error: 'unauthorized' });
+            }
+
+            try {
+                const payload = await readJsonBody(request);
+                const discordUserId = String(payload.discordUserId || '').trim();
+                const amount = Math.floor(Number(payload.amount || 0));
+                const reason = String(payload.reason || 'external_grant').slice(0, 80);
+
+                if (!/^\d{16,25}$/.test(discordUserId) || amount <= 0) {
+                    return sendJsonResponse(response, 400, { error: 'invalid_grant' });
+                }
+
+                const record = addAiTokens(discordUserId, amount, reason);
+                const channel = record.channelId
+                    ? await client.channels.fetch(record.channelId).catch(() => null)
+                    : null;
+
+                if (channel) {
+                    await upsertAiChatPanel(channel, discordUserId).catch(() => null);
+                }
+
+                return sendJsonResponse(response, 200, {
+                    ok: true,
+                    discordUserId,
+                    balance: record.balance
+                });
+            } catch (error) {
+                console.error('Token grant endpoint failed:', error.message);
+                return sendJsonResponse(response, 500, { error: 'token_grant_failed' });
+            }
+        }
+
+        return sendJsonResponse(response, 404, { error: 'not_found' });
+    });
+
+    server.listen(BOT_HTTP_PORT, () => {
+        console.log(`Bot HTTP server listening on port ${BOT_HTTP_PORT}.`);
+    });
+}
+
+startBotHttpServer();
 
 if (!process.env.TOKEN) {
     console.error('TOKEN is missing in Railway variables.');
