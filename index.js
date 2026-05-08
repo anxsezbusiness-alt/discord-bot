@@ -37,7 +37,7 @@ const SALES_CHANNEL_ID = process.env.SALES_CHANNEL_ID || '1492593772884660224';
 const RULES_CHANNEL_ID = process.env.RULES_CHANNEL_ID || '1492255500434407630';
 const TUTORIAL_CHANNEL_ID = process.env.TUTORIAL_CHANNEL_ID || null;
 const INFO_CHANNEL_ID = process.env.INFO_CHANNEL_ID || null;
-const BOT_GUILD_ID = process.env.GUILD_ID || process.env.DISCORD_GUILD_ID || process.env.SERVER_ID || null;
+const BOT_GUILD_ID = process.env.GUILD_ID || process.env.DISCORD_GUILD_ID || process.env.SERVER_ID || '1492255499201286298';
 
 const VIP_SOURCE_CHANNEL_ID = process.env.VIP_SOURCE_CHANNEL_ID || '1492261103315587354';
 const VIP_ALERT_CHANNEL_ID = process.env.VIP_ALERT_CHANNEL_ID || '1492261194487037952';
@@ -70,6 +70,7 @@ const VERIFICATION_CHANNEL_ID = process.env.VERIFICATION_CHANNEL_ID || '14924698
 const UNVERIFIED_ROLE_ID = process.env.UNVERIFIED_ROLE_ID || '1492469864701493278';
 const VERIFIED_ROLE_ID = process.env.VERIFIED_ROLE_ID || '1492463758864416829';
 const AI_PANEL_CHANNEL_ID = process.env.AI_PANEL_CHANNEL_ID || '1501914878716280833';
+const SERVER_GUIDE_CHANNEL_ID = process.env.SERVER_GUIDE_CHANNEL_ID || '1502274806354280644';
 const AI_CHANNEL_CATEGORY_ID = process.env.AI_CHANNEL_CATEGORY_ID || null;
 const AI_TOKEN_STORE_PATH = process.env.AI_TOKEN_STORE_PATH || path.join(__dirname, 'ai-token-store.json');
 const AI_BUY_TOKENS_URL = process.env.AI_BUY_TOKENS_URL || 'https://www.veloo.org/vip.html#ai-tokens';
@@ -89,6 +90,7 @@ const INSTAGRAM_HANDLE = process.env.INSTAGRAM_HANDLE || '@velooarchive';
 const INSTAGRAM_URL = process.env.INSTAGRAM_URL || 'https://www.instagram.com/velooarchive/';
 const WHATSAPP_CHANNEL_URL = process.env.WHATSAPP_CHANNEL_URL || 'https://whatsapp.com/channel/0029Vb8Qc1zEAKW5GYGaSJ3N';
 const BUSINESS_EMAIL = process.env.BUSINESS_EMAIL || 'velooarchive@gmail.com';
+const WEBSITE_URL = process.env.WEBSITE_URL || 'https://www.veloo.org';
 const MAIN_REPLY_COOLDOWN_MS = Number(process.env.MAIN_REPLY_COOLDOWN_MS || 30000);
 const TRUSTED_SELLER_ROLE_ID = process.env.TRUSTED_SELLER_ROLE_ID || null;
 const TRUSTED_SELLER_ROLE_NAME = process.env.TRUSTED_SELLER_ROLE_NAME || '𝐓𝐫𝐮𝐬𝐭𝐞𝐝𝐒𝐞𝐥𝐥𝐞𝐫';
@@ -105,6 +107,7 @@ const SELL_PANEL_TITLE = 'VELOO ARCHIVE / MARKT';
 const TEAM_PANEL_TITLE = 'VELOO ARCHIVE / TEAMFINDER';
 const WELCOME_PANEL_TITLE = 'WILLKOMMEN BEI VELOO ARCHIVE';
 const ROLE_PANEL_TITLE = 'VELOO&YESTERA / ROLLEN';
+const SERVER_GUIDE_PANEL_TITLE = '🧭 VELOO&YESTERA SERVER GUIDE';
 const VERIFICATION_PANEL_TITLE = '✅ VELOO&YESTERA VERIFICATION';
 const RULES_PANEL_TITLE = '📜 VELOO&YESTERA REGELN';
 const COOPERATION_PANEL_TITLE = '🤝 COOPERATIONS';
@@ -1177,6 +1180,117 @@ function buildWelcomeComponents() {
     );
 
     return [guideRow, linkRow];
+}
+
+function buildServerGuidePanel() {
+    const embed = buildPanelEmbed({
+        title: SERVER_GUIDE_PANEL_TITLE,
+        description:
+            'Willkommen bei VELOO&YESTERA. Dieses Panel erklaert dir den Server, die wichtigsten Wege und wie AI Tokens funktionieren.',
+        color: '#d9c39a',
+        fields: [
+            {
+                name: '✅ 1. Erst verifizieren',
+                value:
+                    `Neue Member starten mit Unverified. Gehe zu ${getChannelMention(VERIFICATION_CHANNEL_ID, 'Verification')} und bestaetige dich kurz. Danach bekommst du Verified und kannst den Server richtig nutzen.`,
+                inline: false
+            },
+            {
+                name: '🎭 2. Rollen waehlen',
+                value:
+                    `In ${getChannelMention(REACTION_ROLE_CHANNEL_ID, 'Rollen')} kannst du deine Interessen setzen, damit du die passenden Bereiche und Updates siehst.`,
+                inline: false
+            },
+            {
+                name: '🛒 3. Verkaufen & Community nutzen',
+                value:
+                    `Pieces postest du im Verkaufsbereich ${getChannelMention(SELL_CHANNEL_ID, 'Sell')}. Fuer Fragen, Austausch und schnelle Hilfe nutzt du ${getChannelMention(MAIN_CHANNEL_ID, 'Main Chat')}.`,
+                inline: false
+            },
+            {
+                name: '📸 4. Fits, Mockups, ISO & Creator',
+                value:
+                    `Fits: ${getChannelMention(OUTFIT_CHANNEL_ID, 'Outfit')}\n` +
+                    `Mockups: ${getChannelMention(MOCKUP_CHANNEL_ID, 'Mockup')}\n` +
+                    `ISO/Suche: ${getChannelMention(ISO_CHANNEL_ID, 'ISO')}\n` +
+                    `Creator Bewerbung: ${getChannelMention(CREATOR_CHANNEL_ID, 'Creator')}`,
+                inline: false
+            },
+            {
+                name: '👑 5. VIP',
+                value:
+                    'VIP gibt dir mehr Sichtbarkeit und hebt deine Posts staerker hervor. Wenn dein Abo endet oder gekuendigt wird, entfernt das System die VIP-Rolle automatisch.',
+                inline: false
+            },
+            {
+                name: '✨ 6. AI Tokens richtig erklaert',
+                value:
+                    `AI nutzt du ueber ${getChannelMention(AI_PANEL_CHANNEL_ID, 'Ask AI')}. Tokens sind kein "1 Frage = 1 Token" System. Abgerechnet wird nach echter AI-Nutzung: Frage plus Antwort. Wenn eine Antwort z.B. 550 AI Tokens verbraucht, werden 550 Tokens abgezogen. Kaufen kannst du sie hier: ${AI_BUY_TOKENS_URL}`,
+                inline: false
+            },
+            {
+                name: '🌐 Socials & Kontakt',
+                value:
+                    `Website: ${WEBSITE_URL}\n` +
+                    `TikTok: ${TIKTOK_URL}\n` +
+                    `${SECONDARY_TIKTOK_LABEL}: ${SECONDARY_TIKTOK_URL}\n` +
+                    `Instagram: ${INSTAGRAM_HANDLE} - ${INSTAGRAM_URL}\n` +
+                    `WhatsApp: ${WHATSAPP_CHANNEL_URL}\n` +
+                    `Business: ${BUSINESS_EMAIL}`,
+                inline: false
+            }
+        ],
+        footerText: 'VELOO&YESTERA // SERVER GUIDE'
+    });
+
+    const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+            .setLabel('🌐 Website')
+            .setStyle(ButtonStyle.Link)
+            .setURL(WEBSITE_URL),
+        new ButtonBuilder()
+            .setLabel('🛒 Tokens')
+            .setStyle(ButtonStyle.Link)
+            .setURL(AI_BUY_TOKENS_URL),
+        new ButtonBuilder()
+            .setLabel('🎵 TikTok')
+            .setStyle(ButtonStyle.Link)
+            .setURL(TIKTOK_URL),
+        new ButtonBuilder()
+            .setLabel('📸 Instagram')
+            .setStyle(ButtonStyle.Link)
+            .setURL(INSTAGRAM_URL),
+        new ButtonBuilder()
+            .setLabel('💬 WhatsApp')
+            .setStyle(ButtonStyle.Link)
+            .setURL(WHATSAPP_CHANNEL_URL)
+    );
+
+    return { embeds: [embed], components: [row] };
+}
+
+async function upsertPanelMessage(channel, title, payload) {
+    const messages = await channel.messages.fetch({ limit: 50 });
+    const existingPanel = messages.find(message =>
+        message.author.id === client.user.id &&
+        message.embeds[0]?.title === title
+    );
+
+    if (existingPanel) {
+        await existingPanel.edit(payload);
+        return existingPanel;
+    }
+
+    return channel.send(payload);
+}
+
+async function sendServerGuidePanel() {
+    const guideChannel = await client.channels.fetch(SERVER_GUIDE_CHANNEL_ID).catch(() => null);
+    if (!guideChannel) {
+        return;
+    }
+
+    await upsertPanelMessage(guideChannel, SERVER_GUIDE_PANEL_TITLE, buildServerGuidePanel());
 }
 
 function buildWelcomeGuideText(topicKey) {
@@ -3204,6 +3318,12 @@ async function refreshPanels() {
         await sendVerificationPanel();
     } catch (error) {
         console.error('Verification channel error:', error.message);
+    }
+
+    try {
+        await sendServerGuidePanel();
+    } catch (error) {
+        console.error('Server guide channel error:', error.message);
     }
 
     try {

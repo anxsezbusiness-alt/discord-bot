@@ -31,7 +31,8 @@ Diese Variablen in Railway beim Bot setzen:
 - `BOT_SYNC_SECRET`
   - langer geheimer Text, exakt gleich wie in Vercel
 - `GUILD_ID`
-  - deine Server-ID, empfohlen fuer sichere VIP-Entfernung
+  - deine Server-ID: `1492255499201286298`
+  - ist im Code schon als Standard gesetzt, in Railway trotzdem empfehlenswert
 - `AI_PANEL_CHANNEL_ID`
   - `1501914878716280833`
 - `AI_BUY_TOKENS_URL`
