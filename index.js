@@ -73,11 +73,14 @@ const AI_PANEL_CHANNEL_ID = process.env.AI_PANEL_CHANNEL_ID || '1501914878716280
 const SERVER_GUIDE_CHANNEL_ID = process.env.SERVER_GUIDE_CHANNEL_ID || '1502274806354280644';
 const AI_EXPLAINER_CHANNEL_ID = process.env.AI_EXPLAINER_CHANNEL_ID || '1502297892336173066';
 const SUPPORT_TICKET_PANEL_CHANNEL_ID = process.env.SUPPORT_TICKET_PANEL_CHANNEL_ID || '1492255500434407632';
+const REVIEW_CHANNEL_ID = process.env.REVIEW_CHANNEL_ID || '1502373071678607442';
 const TICKET_CATEGORY_ID = process.env.TICKET_CATEGORY_ID || '1502339213176344796';
 const TICKET_NOTIFY_USER_ID = process.env.TICKET_NOTIFY_USER_ID || null;
 const TICKET_IDLE_HOURS = Number(process.env.TICKET_IDLE_HOURS || 24);
 const TICKET_IDLE_MS = TICKET_IDLE_HOURS * 60 * 60 * 1000;
 const STAFF_LOG_CHANNEL_ID = process.env.STAFF_LOG_CHANNEL_ID || '1492261750110949509';
+const ANALYTICS_CHANNEL_ID = process.env.ANALYTICS_CHANNEL_ID || STAFF_LOG_CHANNEL_ID;
+const ANALYTICS_WEEKLY_CRON = process.env.ANALYTICS_WEEKLY_CRON || '0 9 * * 1';
 const ANTI_SPAM_WINDOW_MS = Number(process.env.ANTI_SPAM_WINDOW_MS || 8000);
 const ANTI_SPAM_MAX_MESSAGES = Number(process.env.ANTI_SPAM_MAX_MESSAGES || 6);
 const NEW_ACCOUNT_WARN_DAYS = Number(process.env.NEW_ACCOUNT_WARN_DAYS || 7);
@@ -108,6 +111,8 @@ const MAIN_REPLY_COOLDOWN_MS = Number(process.env.MAIN_REPLY_COOLDOWN_MS || 3000
 const TRUSTED_SELLER_ROLE_ID = process.env.TRUSTED_SELLER_ROLE_ID || null;
 const TRUSTED_SELLER_ROLE_NAME = process.env.TRUSTED_SELLER_ROLE_NAME || '𝐓𝐫𝐮𝐬𝐭𝐞𝐝𝐒𝐞𝐥𝐥𝐞𝐫';
 const TRUSTED_SELLER_MIN_SALES = Number(process.env.TRUSTED_SELLER_MIN_SALES || 5);
+const REVIEW_TRUSTED_MIN_COUNT = Number(process.env.REVIEW_TRUSTED_MIN_COUNT || 10);
+const REVIEW_TRUSTED_MIN_AVERAGE = Number(process.env.REVIEW_TRUSTED_MIN_AVERAGE || 4);
 const OPENAI_INSTRUCTIONS = [
     'Du bist die VELOO&YESTERA AI im Discord.',
     'Dein Fokus ist Vinted: bessere Listings, Titel, Beschreibungen, Preisideen, Fotos, Produktpositionierung, Bundle-Strategien, Verhandlung, Buyer-Messages, Marketing-Taktiken, Content-Ideen und Schritt-fuer-Schritt Tutorials fuer Vintage, Resell und Creator.',
@@ -129,6 +134,7 @@ const ROLE_PANEL_TITLE = 'VELOO&YESTERA / ROLLEN';
 const SUPPORT_TICKET_PANEL_TITLE = '\uD83C\uDF9F\uFE0F SUPPORT TICKETS';
 const COOPERATION_REQUEST_PANEL_TITLE = '\uD83E\uDD1D VELO COLLABORATION PROTOCOL';
 const AI_EXPLAINER_PANEL_TITLE = '\u2728 VELOO&YESTERA AI & TOKEN GUIDE';
+const SELLER_REVIEW_PANEL_TITLE = '\u2B50 VELOO&YESTERA SELLER REVIEWS';
 const SERVER_GUIDE_PANEL_TITLE = '🧭 VELOO&YESTERA SERVER GUIDE';
 const VERIFICATION_PANEL_TITLE = '✅ VELOO&YESTERA VERIFICATION';
 const RULES_PANEL_TITLE = '📜 VELOO&YESTERA REGELN';
@@ -334,7 +340,8 @@ const ACTIVITY_POINTS = {
     mockup_report: 1,
     iso_post: 2,
     outfit_upload: 4,
-    outfit_like: 1
+    outfit_like: 1,
+    seller_review: 2
 };
 
 const ACTIVITY_LABELS = {
@@ -350,7 +357,8 @@ const ACTIVITY_LABELS = {
     mockup_report: 'Meldungen',
     iso_post: 'ISO',
     outfit_upload: 'Fits',
-    outfit_like: 'Fit-Likes'
+    outfit_like: 'Fit-Likes',
+    seller_review: 'Reviews'
 };
 
 function createEmptyMockupStore() {
@@ -365,7 +373,9 @@ function createEmptyMockupStore() {
         announcedActivityMonths: [],
         monthlyActivityWinners: {},
         announcedCommunityCookedMonths: [],
-        communityCookedHistory: {}
+        communityCookedHistory: {},
+        sellerReviews: {},
+        announcedAnalyticsWeeks: []
     };
 }
 
@@ -400,7 +410,14 @@ function loadMockupStore() {
             communityCookedHistory:
                 parsed.communityCookedHistory && typeof parsed.communityCookedHistory === 'object'
                     ? parsed.communityCookedHistory
-                    : {}
+                    : {},
+            sellerReviews:
+                parsed.sellerReviews && typeof parsed.sellerReviews === 'object'
+                    ? parsed.sellerReviews
+                    : {},
+            announcedAnalyticsWeeks: Array.isArray(parsed.announcedAnalyticsWeeks)
+                ? parsed.announcedAnalyticsWeeks
+                : []
         };
     } catch (error) {
         console.error('Mockup store could not be loaded:', error.message);
@@ -3109,7 +3126,10 @@ async function syncTrustedSellerRoleForMember(guild, userId, saleCount) {
         return false;
     }
 
-    if (saleCount >= TRUSTED_SELLER_MIN_SALES) {
+    const reviewStats = getSellerReviewStats(userId);
+    const trustedByReviews = sellerQualifiesForReviewTrusted(reviewStats);
+
+    if (saleCount >= TRUSTED_SELLER_MIN_SALES || trustedByReviews) {
         if (!member.roles.cache.has(trustedRole.id)) {
             await member.roles.add(trustedRole).catch(() => {});
             return true;
@@ -3149,7 +3169,8 @@ async function syncTrustedSellerRoles() {
 
     for (const member of trustedRole.members.values()) {
         const saleCount = salesCounts.get(member.id) || 0;
-        if (saleCount < TRUSTED_SELLER_MIN_SALES) {
+        const reviewStats = getSellerReviewStats(member.id);
+        if (saleCount < TRUSTED_SELLER_MIN_SALES && !sellerQualifiesForReviewTrusted(reviewStats)) {
             await member.roles.remove(trustedRole).catch(() => {});
         }
     }
@@ -3246,6 +3267,139 @@ async function sendStaffLog(title, description, fields = [], color = '#d9c39a') 
     });
 }
 
+function getAnalyticsWeekKey(date = new Date()) {
+    const copy = new Date(date);
+    const day = copy.getUTCDay() || 7;
+    copy.setUTCHours(0, 0, 0, 0);
+    copy.setUTCDate(copy.getUTCDate() - day + 1);
+    return copy.toISOString().slice(0, 10);
+}
+
+function isRecentIsoDate(value, sinceMs) {
+    const time = new Date(value || 0).getTime();
+    return Number.isFinite(time) && time >= sinceMs;
+}
+
+function sumAmounts(events, sinceMs) {
+    return events
+        .filter(event => isRecentIsoDate(event.createdAt, sinceMs))
+        .reduce((sum, event) => sum + Number(event.amount || 0), 0);
+}
+
+function buildTopActivityText(monthKey) {
+    const monthBucket = mockupStore.activityByMonth?.[monthKey] || {};
+    const topEntries = Object.entries(monthBucket)
+        .sort((left, right) => Number(right[1]?.points || 0) - Number(left[1]?.points || 0))
+        .slice(0, 5);
+
+    if (!topEntries.length) {
+        return 'Noch keine Aktivitaet in diesem Monat.';
+    }
+
+    return topEntries
+        .map(([userId, entry], index) =>
+            `${index + 1}. ${getActivityDisplayName(entry, userId)} - ${Number(entry.points || 0)} Punkte`
+        )
+        .join('\n');
+}
+
+async function countOpenTicketChannels() {
+    const guild = await getBotGuild();
+    if (!guild) {
+        return 0;
+    }
+
+    await guild.channels.fetch().catch(() => null);
+    return guild.channels.cache.filter(channel =>
+        channel?.topic?.startsWith?.(TICKET_TOPIC_PREFIX)
+    ).size;
+}
+
+async function sendWeeklyAnalyticsReport(options = {}) {
+    if (!ANALYTICS_CHANNEL_ID) {
+        return;
+    }
+
+    const weekKey = getAnalyticsWeekKey();
+    mockupStore.announcedAnalyticsWeeks = Array.isArray(mockupStore.announcedAnalyticsWeeks)
+        ? mockupStore.announcedAnalyticsWeeks
+        : [];
+
+    if (!options.force && mockupStore.announcedAnalyticsWeeks.includes(weekKey)) {
+        return;
+    }
+
+    const analyticsChannel = await client.channels.fetch(ANALYTICS_CHANNEL_ID).catch(() => null);
+    if (!analyticsChannel?.send) {
+        return;
+    }
+
+    const sinceMs = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    const recentReviews = Object.values(mockupStore.sellerReviews || {}).filter(review =>
+        review && !review.deleted && isRecentIsoDate(review.createdAt, sinceMs)
+    );
+    const reviewAverage = recentReviews.length
+        ? recentReviews.reduce((sum, review) => sum + Number(review.rating || 0), 0) / recentReviews.length
+        : 0;
+    const criticalReviews = recentReviews.filter(review => Number(review.rating || 0) <= 2).length;
+    const tokenGrants = Array.isArray(aiTokenStore.grants) ? aiTokenStore.grants : [];
+    const tokenUsageEvents = Array.isArray(aiTokenStore.usageEvents) ? aiTokenStore.usageEvents : [];
+    const recentTokenGrants = sumAmounts(tokenGrants, sinceMs);
+    const recentTokenUse = sumAmounts(tokenUsageEvents, sinceMs);
+    const activeAiUsers = new Set(
+        tokenUsageEvents
+            .filter(event => isRecentIsoDate(event.createdAt, sinceMs))
+            .map(event => event.userId)
+            .filter(Boolean)
+    ).size;
+    const activeVipCount = Object.values(vipStatusStore.users || {}).filter(record => record?.active).length;
+    const openTickets = await countOpenTicketChannels();
+    const monthKey = getMonthKey();
+
+    const embed = buildPanelEmbed({
+        title: '\uD83D\uDCCA VELOO&YESTERA WEEKLY ANALYTICS',
+        description:
+            'Automatischer Staff-Report fuer Wachstum, Safety, Tokens und Community-Aktivitaet.',
+        color: '#6a7dff',
+        fields: [
+            {
+                name: '\uD83D\uDC51 VIP / Account',
+                value: `Aktive VIP Accounts: ${activeVipCount}\nOffene Tickets: ${openTickets}`,
+                inline: true
+            },
+            {
+                name: '\u2728 AI Tokens',
+                value:
+                    `Gutschriften 7 Tage: ${recentTokenGrants}\nVerbraucht 7 Tage: ${recentTokenUse}\nAktive AI User: ${activeAiUsers}`,
+                inline: true
+            },
+            {
+                name: '\u2B50 Seller Reviews',
+                value:
+                    `Reviews 7 Tage: ${recentReviews.length}\nDurchschnitt: ${reviewAverage.toFixed(2)}/5\nKritisch: ${criticalReviews}`,
+                inline: true
+            },
+            {
+                name: '\uD83D\uDCC8 Top Aktivitaet diesen Monat',
+                value: buildTopActivityText(monthKey),
+                inline: false
+            },
+            {
+                name: '\uD83D\uDEE1\uFE0F Payment Safety',
+                value:
+                    'Token-Gutschriften nutzen Idempotency Keys. Success-URL Reloads werden abgefangen, damit Kaeufe nicht doppelt zaehlen.',
+                inline: false
+            }
+        ],
+        footerText: `Analytics Week: ${weekKey}`
+    });
+
+    await analyticsChannel.send({ embeds: [embed] });
+    mockupStore.announcedAnalyticsWeeks.push(weekKey);
+    mockupStore.announcedAnalyticsWeeks = mockupStore.announcedAnalyticsWeeks.slice(-20);
+    saveMockupStore();
+}
+
 function loadVipStatusStore() {
     try {
         if (!fs.existsSync(VIP_STATUS_STORE_PATH)) {
@@ -3284,18 +3438,19 @@ function upsertVipStatus(userId, patch) {
 function loadAiTokenStore() {
     try {
         if (!fs.existsSync(AI_TOKEN_STORE_PATH)) {
-            return { users: {}, grants: [], usageEvents: [] };
+            return { users: {}, grants: [], usageEvents: [], processedGrants: [] };
         }
 
         const parsed = JSON.parse(fs.readFileSync(AI_TOKEN_STORE_PATH, 'utf8'));
         return {
             users: parsed.users || {},
             grants: Array.isArray(parsed.grants) ? parsed.grants : [],
-            usageEvents: Array.isArray(parsed.usageEvents) ? parsed.usageEvents : []
+            usageEvents: Array.isArray(parsed.usageEvents) ? parsed.usageEvents : [],
+            processedGrants: Array.isArray(parsed.processedGrants) ? parsed.processedGrants : []
         };
     } catch (error) {
         console.error('AI token store could not be loaded:', error.message);
-        return { users: {}, grants: [], usageEvents: [] };
+        return { users: {}, grants: [], usageEvents: [], processedGrants: [] };
     }
 }
 
@@ -3321,9 +3476,18 @@ function getAiUserRecord(userId) {
     return aiTokenStore.users[userId];
 }
 
-function addAiTokens(userId, amount, reason = 'manual') {
+function addAiTokens(userId, amount, reason = 'manual', options = {}) {
     const cleanAmount = Math.max(0, Math.floor(Number(amount || 0)));
     if (!userId || cleanAmount <= 0) {
+        return getAiUserRecord(userId);
+    }
+
+    const idempotencyKey = String(options.idempotencyKey || '').trim().slice(0, 180);
+    aiTokenStore.processedGrants = Array.isArray(aiTokenStore.processedGrants)
+        ? aiTokenStore.processedGrants
+        : [];
+
+    if (idempotencyKey && aiTokenStore.processedGrants.some(entry => entry.key === idempotencyKey)) {
         return getAiUserRecord(userId);
     }
 
@@ -3335,8 +3499,21 @@ function addAiTokens(userId, amount, reason = 'manual') {
         userId,
         amount: cleanAmount,
         reason,
+        idempotencyKey: idempotencyKey || null,
         createdAt: new Date().toISOString()
     });
+
+    if (idempotencyKey) {
+        aiTokenStore.processedGrants.push({
+            key: idempotencyKey,
+            userId,
+            amount: cleanAmount,
+            reason,
+            createdAt: new Date().toISOString()
+        });
+        aiTokenStore.processedGrants = aiTokenStore.processedGrants.slice(-500);
+    }
+
     saveAiTokenStore();
     sendStaffLog('🪙 AI Tokens gutgeschrieben', `<@${userId}> hat AI Tokens bekommen.`, [
         { name: 'User', value: `<@${userId}>`, inline: true },
@@ -4433,6 +4610,367 @@ async function sendCooperationRequestTicketPanel() {
     await upsertPanelMessage(cooperationChannel, COOPERATION_REQUEST_PANEL_TITLE, buildCooperationRequestPanel());
 }
 
+function buildSellerReviewPanel() {
+    const embed = buildPanelEmbed({
+        title: SELLER_REVIEW_PANEL_TITLE,
+        description:
+            'Bewerte Seller nach einem echten Deal. So sieht die Community schneller, wer sauber liefert, fair kommuniziert und trusted ist.',
+        color: '#f1c75b',
+        fields: [
+            {
+                name: '\u2B50 Review abgeben',
+                value:
+                    'Klicke auf den Button, trage den Seller, 1-5 Sterne, Deal/Item und dein Feedback ein.',
+                inline: false
+            },
+            {
+                name: '\uD83D\uDEE1\uFE0F Fair bleiben',
+                value:
+                    'Nur echte Deals bewerten. Fake Reviews, Beleidigungen oder Rache-Reviews koennen vom Staff entfernt werden.',
+                inline: false
+            },
+            {
+                name: '\uD83C\uDFC5 Trusted Seller',
+                value:
+                    `Ab ${REVIEW_TRUSTED_MIN_COUNT} Reviews mit mindestens ${REVIEW_TRUSTED_MIN_AVERAGE.toFixed(1)} Sternen kann automatisch die ${DEFAULT_TRUSTED_SELLER_ROLE_NAME} Rolle vergeben werden.`,
+                inline: false
+            }
+        ],
+        footerText: 'VELOO&YESTERA // SELLER REVIEWS'
+    });
+
+    const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+            .setCustomId('open_seller_review')
+            .setLabel('\u2B50 Review abgeben')
+            .setStyle(ButtonStyle.Primary)
+    );
+
+    return { embeds: [embed], components: [row] };
+}
+
+async function sendSellerReviewPanel() {
+    const reviewChannel = await client.channels.fetch(REVIEW_CHANNEL_ID).catch(() => null);
+    if (!reviewChannel) {
+        return;
+    }
+
+    await upsertPanelMessage(reviewChannel, SELLER_REVIEW_PANEL_TITLE, buildSellerReviewPanel());
+}
+
+function showSellerReviewModal(interaction) {
+    const modal = new ModalBuilder()
+        .setCustomId('seller_review_modal')
+        .setTitle('Seller Review');
+
+    const sellerInput = new TextInputBuilder()
+        .setCustomId('seller')
+        .setLabel('Seller @ oder User-ID')
+        .setPlaceholder('@seller oder Discord User-ID')
+        .setStyle(TextInputStyle.Short)
+        .setRequired(true);
+
+    const ratingInput = new TextInputBuilder()
+        .setCustomId('rating')
+        .setLabel('Bewertung 1-5')
+        .setPlaceholder('5')
+        .setStyle(TextInputStyle.Short)
+        .setRequired(true);
+
+    const dealInput = new TextInputBuilder()
+        .setCustomId('deal')
+        .setLabel('Piece / Deal')
+        .setPlaceholder('z.B. Carhartt Jacke, Bundle, Hoodie...')
+        .setStyle(TextInputStyle.Short)
+        .setRequired(true);
+
+    const feedbackInput = new TextInputBuilder()
+        .setCustomId('feedback')
+        .setLabel('Feedback')
+        .setPlaceholder('Was lief gut oder schlecht? Versand, Kommunikation, Zustand...')
+        .setStyle(TextInputStyle.Paragraph)
+        .setRequired(true);
+
+    const proofInput = new TextInputBuilder()
+        .setCustomId('proof')
+        .setLabel('Link / Proof optional')
+        .setPlaceholder('Optional: Vinted-Link, Discord Message-Link oder kurzer Hinweis')
+        .setStyle(TextInputStyle.Short)
+        .setRequired(false);
+
+    modal.addComponents(
+        new ActionRowBuilder().addComponents(sellerInput),
+        new ActionRowBuilder().addComponents(ratingInput),
+        new ActionRowBuilder().addComponents(dealInput),
+        new ActionRowBuilder().addComponents(feedbackInput),
+        new ActionRowBuilder().addComponents(proofInput)
+    );
+
+    return interaction.showModal(modal);
+}
+
+function parseDiscordUserId(value) {
+    const match = String(value || '').match(/\d{16,25}/);
+    return match ? match[0] : null;
+}
+
+function getReviewStars(rating) {
+    const safeRating = Math.max(1, Math.min(5, Number(rating) || 1));
+    return '\u2B50'.repeat(safeRating) + '\u25FB\uFE0F'.repeat(5 - safeRating);
+}
+
+function getSellerReviewStats(sellerId) {
+    const reviews = Object.values(mockupStore.sellerReviews || {}).filter(review =>
+        review &&
+        !review.deleted &&
+        review.sellerId === sellerId
+    );
+
+    const totalRating = reviews.reduce((sum, review) => sum + (Number(review.rating) || 0), 0);
+    const count = reviews.length;
+    const average = count ? totalRating / count : 0;
+
+    return {
+        count,
+        average,
+        positive: reviews.filter(review => Number(review.rating) >= 4).length,
+        critical: reviews.filter(review => Number(review.rating) <= 2).length
+    };
+}
+
+function sellerQualifiesForReviewTrusted(stats) {
+    return stats.count >= REVIEW_TRUSTED_MIN_COUNT && stats.average >= REVIEW_TRUSTED_MIN_AVERAGE;
+}
+
+function buildSellerReviewEmbed(review, sellerMember, buyerMember, stats) {
+    const sellerName = getMemberDisplayName(sellerMember, sellerMember?.user);
+    const buyerName = getMemberDisplayName(buyerMember, buyerMember?.user);
+    const rating = Number(review.rating) || 1;
+
+    return buildPanelEmbed({
+        title: `${getReviewStars(rating)} Seller Review`,
+        description:
+            `${buyerMember ? `<@${buyerMember.id}>` : buyerName} hat ${sellerMember ? `<@${sellerMember.id}>` : sellerName} bewertet.`,
+        color: rating >= 4 ? '#57f287' : rating <= 2 ? '#ed4245' : '#f1c75b',
+        fields: [
+            {
+                name: '\uD83D\uDC64 Seller',
+                value: sellerMember ? `<@${sellerMember.id}>` : sellerName,
+                inline: true
+            },
+            {
+                name: '\uD83D\uDED2 Deal',
+                value: cleanLogValue(review.deal, 300),
+                inline: true
+            },
+            {
+                name: '\u2B50 Bewertung',
+                value: `${rating}/5`,
+                inline: true
+            },
+            {
+                name: '\uD83D\uDCDD Feedback',
+                value: cleanLogValue(review.feedback, 900),
+                inline: false
+            },
+            {
+                name: '\uD83D\uDCCA Seller Score',
+                value:
+                    stats.count
+                        ? `${stats.average.toFixed(2)}/5 aus ${stats.count} Review(s)`
+                        : 'Noch keine Stats',
+                inline: false
+            }
+        ].concat(
+            review.proof
+                ? [{
+                    name: '\uD83D\uDD17 Proof / Hinweis',
+                    value: cleanLogValue(review.proof, 500),
+                    inline: false
+                }]
+                : []
+        ),
+        footerText: `Review ID: ${review.reviewId}`
+    });
+}
+
+function buildSellerReviewActionRow(reviewId) {
+    return new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+            .setCustomId(`review_delete_${reviewId}`)
+            .setLabel('\uD83D\uDDD1\uFE0F Review entfernen')
+            .setStyle(ButtonStyle.Danger)
+    );
+}
+
+async function maybeGrantReviewTrustedSellerRole(guild, sellerId, stats) {
+    if (!sellerQualifiesForReviewTrusted(stats)) {
+        return false;
+    }
+
+    const trustedRole = findRoleByIdOrName(guild, TRUSTED_SELLER_ROLE_ID, DEFAULT_TRUSTED_SELLER_ROLE_NAME);
+    if (!trustedRole) {
+        return false;
+    }
+
+    const member = await guild.members.fetch(sellerId).catch(() => null);
+    if (!member || member.roles.cache.has(trustedRole.id)) {
+        return false;
+    }
+
+    await member.roles.add(trustedRole).catch(() => null);
+    await sendStaffLog('\uD83C\uDFC5 Trusted Seller vergeben', `<@${sellerId}> hat die Trusted Seller Rolle ueber Reviews bekommen.`, [
+        { name: 'Reviews', value: String(stats.count), inline: true },
+        { name: 'Durchschnitt', value: `${stats.average.toFixed(2)}/5`, inline: true },
+        { name: 'Rolle', value: `<@&${trustedRole.id}>`, inline: true }
+    ], '#57f287');
+
+    return true;
+}
+
+async function handleSellerReviewSubmit(interaction) {
+    if (!interaction.inGuild()) {
+        return replyToInteraction(interaction, {
+            content: 'Reviews funktionieren nur direkt im Server.',
+            ephemeral: true
+        });
+    }
+
+    await interaction.deferReply({ ephemeral: true });
+
+    const sellerId = parseDiscordUserId(interaction.fields.getTextInputValue('seller'));
+    const rating = Number(interaction.fields.getTextInputValue('rating'));
+    const deal = interaction.fields.getTextInputValue('deal');
+    const feedback = interaction.fields.getTextInputValue('feedback');
+    const proof = interaction.fields.getTextInputValue('proof') || '';
+
+    if (!sellerId) {
+        return interaction.editReply('Bitte gib den Seller als @Mention oder Discord User-ID an.');
+    }
+
+    if (sellerId === interaction.user.id) {
+        return interaction.editReply('Du kannst dich nicht selbst bewerten.');
+    }
+
+    if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
+        return interaction.editReply('Bitte gib bei Bewertung eine Zahl von 1 bis 5 ein.');
+    }
+
+    const sellerMember = await interaction.guild.members.fetch(sellerId).catch(() => null);
+    if (!sellerMember) {
+        return interaction.editReply('Ich konnte diesen Seller nicht im Server finden.');
+    }
+
+    const buyerMember = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
+    const reviewChannel = await client.channels.fetch(REVIEW_CHANNEL_ID).catch(() => null);
+    if (!reviewChannel?.send) {
+        return interaction.editReply('Der Review-Channel wurde nicht gefunden. Bitte sag dem Staff Bescheid.');
+    }
+
+    const reviewId = `rv_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+    const review = {
+        reviewId,
+        sellerId,
+        buyerId: interaction.user.id,
+        rating,
+        deal: cleanLogValue(deal, 350),
+        feedback: cleanLogValue(feedback, 1200),
+        proof: cleanLogValue(proof, 600),
+        channelId: REVIEW_CHANNEL_ID,
+        messageId: null,
+        messageUrl: null,
+        createdAt: new Date().toISOString(),
+        deleted: false
+    };
+
+    mockupStore.sellerReviews[reviewId] = review;
+    let stats = getSellerReviewStats(sellerId);
+    const sentMessage = await reviewChannel.send({
+        embeds: [buildSellerReviewEmbed(review, sellerMember, buyerMember, stats)],
+        components: [buildSellerReviewActionRow(reviewId)]
+    });
+
+    review.messageId = sentMessage.id;
+    review.messageUrl = sentMessage.url;
+    mockupStore.sellerReviews[reviewId] = review;
+    saveMockupStore();
+
+    stats = getSellerReviewStats(sellerId);
+    await sentMessage.edit({
+        embeds: [buildSellerReviewEmbed(review, sellerMember, buyerMember, stats)],
+        components: [buildSellerReviewActionRow(reviewId)]
+    }).catch(() => null);
+
+    await maybeGrantReviewTrustedSellerRole(interaction.guild, sellerId, stats);
+
+    recordUserActivity(interaction.user.id, 'seller_review', {
+        displayName: getMemberDisplayName(buyerMember, interaction.user)
+    });
+
+    await sendStaffLog(
+        rating <= 2 ? '\u26A0\uFE0F Kritische Seller Review' : '\u2B50 Seller Review',
+        `${interaction.user} hat <@${sellerId}> mit ${rating}/5 bewertet.`,
+        [
+            { name: 'Seller', value: `<@${sellerId}>`, inline: true },
+            { name: 'Buyer', value: `${interaction.user}`, inline: true },
+            { name: 'Deal', value: cleanLogValue(deal, 400), inline: false },
+            { name: 'Feedback', value: cleanLogValue(feedback, 800), inline: false },
+            { name: 'Nachricht', value: sentMessage.url || 'kein Link', inline: false }
+        ],
+        rating <= 2 ? '#ed4245' : '#f1c75b'
+    );
+
+    return interaction.editReply(`Deine Review wurde gepostet. Neuer Seller Score: ${stats.average.toFixed(2)}/5 aus ${stats.count} Review(s).`);
+}
+
+async function handleSellerReviewDelete(interaction, reviewId) {
+    const member = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
+    if (!memberCanManageTickets(member)) {
+        return replyToInteraction(interaction, {
+            content: 'Nur Owner oder Moderatoren koennen Reviews entfernen.',
+            ephemeral: true
+        });
+    }
+
+    const review = mockupStore.sellerReviews?.[reviewId];
+    if (!review || review.deleted) {
+        return replyToInteraction(interaction, {
+            content: 'Diese Review wurde schon entfernt oder nicht gefunden.',
+            ephemeral: true
+        });
+    }
+
+    review.deleted = true;
+    review.deletedAt = new Date().toISOString();
+    review.deletedBy = interaction.user.id;
+    mockupStore.sellerReviews[reviewId] = review;
+    saveMockupStore();
+
+    const removedEmbed = buildPanelEmbed({
+        title: '\uD83D\uDDD1\uFE0F Review entfernt',
+        description: `Diese Review wurde von ${interaction.user} entfernt.`,
+        color: '#ed4245',
+        fields: [
+            { name: 'Seller', value: `<@${review.sellerId}>`, inline: true },
+            { name: 'Buyer', value: `<@${review.buyerId}>`, inline: true },
+            { name: 'Review ID', value: review.reviewId, inline: false }
+        ],
+        footerText: 'VELOO&YESTERA // REVIEW MODERATION'
+    });
+
+    await interaction.message.edit({ embeds: [removedEmbed], components: [] }).catch(() => null);
+    await sendStaffLog('\uD83D\uDDD1\uFE0F Review entfernt', `${interaction.user} hat eine Seller Review entfernt.`, [
+        { name: 'Seller', value: `<@${review.sellerId}>`, inline: true },
+        { name: 'Buyer', value: `<@${review.buyerId}>`, inline: true },
+        { name: 'Review ID', value: review.reviewId, inline: false }
+    ], '#ed4245');
+
+    return replyToInteraction(interaction, {
+        content: 'Review wurde entfernt.',
+        ephemeral: true
+    });
+}
+
 async function sendCreatorApplicationPanel() {
     const creatorChannel = await client.channels.fetch(CREATOR_CHANNEL_ID).catch(() => null);
     if (!creatorChannel) {
@@ -4496,6 +5034,12 @@ async function refreshPanels() {
         await sendSupportTicketPanel();
     } catch (error) {
         console.error('Support ticket panel error:', error.message);
+    }
+
+    try {
+        await sendSellerReviewPanel();
+    } catch (error) {
+        console.error('Seller review panel error:', error.message);
     }
 
     try {
@@ -5625,6 +6169,12 @@ client.once('ready', async () => {
     cron.schedule(COMMUNITY_COOKED_CRON, async () => {
         await announceCommunityCookedIfNeeded();
     }, { timezone: TIMEZONE });
+
+    cron.schedule(ANALYTICS_WEEKLY_CRON, async () => {
+        await sendWeeklyAnalyticsReport().catch(error => {
+            console.error('Weekly analytics report failed:', error.message);
+        });
+    }, { timezone: TIMEZONE });
 });
 
 client.on('interactionCreate', async interaction => {
@@ -5744,6 +6294,17 @@ client.on('interactionCreate', async interaction => {
 
             if (interaction.customId === 'open_cooperation_ticket') {
                 return showCooperationTicketModal(interaction);
+            }
+
+            if (interaction.customId === 'open_seller_review') {
+                return showSellerReviewModal(interaction);
+            }
+
+            if (interaction.customId.startsWith('review_delete_')) {
+                return handleSellerReviewDelete(
+                    interaction,
+                    interaction.customId.replace('review_delete_', '')
+                );
             }
 
             if (interaction.customId === 'ticket_accept') {
@@ -6416,6 +6977,10 @@ client.on('interactionCreate', async interaction => {
                 });
             }
 
+            if (interaction.customId === 'seller_review_modal') {
+                return handleSellerReviewSubmit(interaction);
+            }
+
             if (interaction.customId === 'upload_modal') {
                 activeUploads.set(interaction.user.id, {
                     type: 'sell',
@@ -6842,12 +7407,16 @@ function startBotHttpServer() {
                 const discordUserId = String(payload.discordUserId || '').trim();
                 const amount = Math.floor(Number(payload.amount || 0));
                 const reason = String(payload.reason || 'external_grant').slice(0, 80);
+                const idempotencyKey = String(payload.idempotencyKey || '').trim().slice(0, 180);
 
                 if (!/^\d{16,25}$/.test(discordUserId) || amount <= 0) {
                     return sendJsonResponse(response, 400, { error: 'invalid_grant' });
                 }
 
-                const record = addAiTokens(discordUserId, amount, reason);
+                const wasProcessed = idempotencyKey
+                    ? aiTokenStore.processedGrants?.some(entry => entry.key === idempotencyKey)
+                    : false;
+                const record = addAiTokens(discordUserId, amount, reason, { idempotencyKey });
                 const channel = record.channelId
                     ? await client.channels.fetch(record.channelId).catch(() => null)
                     : null;
@@ -6859,7 +7428,8 @@ function startBotHttpServer() {
                 return sendJsonResponse(response, 200, {
                     ok: true,
                     discordUserId,
-                    balance: record.balance
+                    balance: record.balance,
+                    duplicate: Boolean(wasProcessed && idempotencyKey)
                 });
             } catch (error) {
                 console.error('Token grant endpoint failed:', error.message);
