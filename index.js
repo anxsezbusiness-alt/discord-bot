@@ -77,8 +77,15 @@ const TICKET_CATEGORY_ID = process.env.TICKET_CATEGORY_ID || '150233921317634479
 const TICKET_NOTIFY_USER_ID = process.env.TICKET_NOTIFY_USER_ID || null;
 const TICKET_IDLE_HOURS = Number(process.env.TICKET_IDLE_HOURS || 24);
 const TICKET_IDLE_MS = TICKET_IDLE_HOURS * 60 * 60 * 1000;
+const STAFF_LOG_CHANNEL_ID = process.env.STAFF_LOG_CHANNEL_ID || '1492261750110949509';
+const ANTI_SPAM_WINDOW_MS = Number(process.env.ANTI_SPAM_WINDOW_MS || 8000);
+const ANTI_SPAM_MAX_MESSAGES = Number(process.env.ANTI_SPAM_MAX_MESSAGES || 6);
+const NEW_ACCOUNT_WARN_DAYS = Number(process.env.NEW_ACCOUNT_WARN_DAYS || 7);
+const VIP_EXPIRY_REMINDER_DAYS = Number(process.env.VIP_EXPIRY_REMINDER_DAYS || 2);
+const VIP_EXPIRY_REMINDER_MS = VIP_EXPIRY_REMINDER_DAYS * 24 * 60 * 60 * 1000;
 const AI_CHANNEL_CATEGORY_ID = process.env.AI_CHANNEL_CATEGORY_ID || null;
 const AI_TOKEN_STORE_PATH = process.env.AI_TOKEN_STORE_PATH || path.join(__dirname, 'ai-token-store.json');
+const VIP_STATUS_STORE_PATH = process.env.VIP_STATUS_STORE_PATH || path.join(__dirname, 'vip-status-store.json');
 const AI_BUY_TOKENS_URL = process.env.AI_BUY_TOKENS_URL || 'https://www.veloo.org/vip.html#ai-tokens';
 const AI_STARTING_TOKENS = Number(process.env.AI_STARTING_TOKENS || 0);
 const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-5.4-mini';
@@ -168,8 +175,11 @@ const activeUploads = new Map();
 const alertedVipMessages = new Set();
 const forwardedBrandMessages = new Set();
 const mainChannelReplyCooldowns = new Map();
+const spamWindows = new Map();
+const newAccountWarnings = new Set();
 let mockupStore = loadMockupStore();
 let aiTokenStore = loadAiTokenStore();
+let vipStatusStore = loadVipStatusStore();
 
 const BRAND_CHANNEL_CONFIGS = [
     { label: 'Nike', keywords: ['nike'], channelId: '1500936023688085515' },
@@ -1017,6 +1027,15 @@ async function removeVipRoleForUser(discordUserId) {
     }
 
     await member.roles.remove(vipRole.id);
+    upsertVipStatus(discordUserId, {
+        active: false,
+        removedAt: new Date().toISOString(),
+        reminderSentAt: null
+    });
+    await sendStaffLog('👑 VIP Rolle entfernt', `VIP wurde bei <@${discordUserId}> entfernt.`, [
+        { name: 'User', value: `<@${discordUserId}>`, inline: true },
+        { name: 'Rolle', value: `<@&${vipRole.id}>`, inline: true }
+    ], '#e74c3c');
     return {
         removed: true,
         roleId: vipRole.id
@@ -1462,6 +1481,122 @@ function buildCooperationRequestPanel() {
     return { embeds: [embed], components: [row] };
 }
 
+function showSupportTicketModal(interaction) {
+    const modal = new ModalBuilder()
+        .setCustomId('support_ticket_modal')
+        .setTitle('Support Ticket');
+
+    const topicInput = new TextInputBuilder()
+        .setCustomId('support_topic')
+        .setLabel('Worum geht es?')
+        .setPlaceholder('z.B. Hilfe, Bug Report, Frage zum Server')
+        .setStyle(TextInputStyle.Short)
+        .setRequired(true);
+
+    const descriptionInput = new TextInputBuilder()
+        .setCustomId('support_description')
+        .setLabel('Beschreibe dein Anliegen')
+        .setPlaceholder('Schreibe kurz und klar, was passiert ist oder was du brauchst.')
+        .setStyle(TextInputStyle.Paragraph)
+        .setRequired(true);
+
+    const urgencyInput = new TextInputBuilder()
+        .setCustomId('support_urgency')
+        .setLabel('Dringlichkeit')
+        .setPlaceholder('z.B. niedrig, normal, dringend')
+        .setStyle(TextInputStyle.Short)
+        .setRequired(false);
+
+    const linkInput = new TextInputBuilder()
+        .setCustomId('support_link')
+        .setLabel('Link / Screenshot-Hinweis')
+        .setPlaceholder('Optional: Link, Channel, Message-Link oder Screenshot-Hinweis')
+        .setStyle(TextInputStyle.Short)
+        .setRequired(false);
+
+    modal.addComponents(
+        new ActionRowBuilder().addComponents(topicInput),
+        new ActionRowBuilder().addComponents(descriptionInput),
+        new ActionRowBuilder().addComponents(urgencyInput),
+        new ActionRowBuilder().addComponents(linkInput)
+    );
+
+    return interaction.showModal(modal);
+}
+
+function showCooperationTicketModal(interaction) {
+    const modal = new ModalBuilder()
+        .setCustomId('cooperation_ticket_modal')
+        .setTitle('Cooperation Anfrage');
+
+    const projectInput = new TextInputBuilder()
+        .setCustomId('coop_project')
+        .setLabel('Name / Link')
+        .setPlaceholder('Server-Link, Instagram, Website oder Projektname')
+        .setStyle(TextInputStyle.Short)
+        .setRequired(true);
+
+    const statsInput = new TextInputBuilder()
+        .setCustomId('coop_stats')
+        .setLabel('Stats')
+        .setPlaceholder('Memberzahl, Reichweite, Engagement oder Zielgruppe')
+        .setStyle(TextInputStyle.Short)
+        .setRequired(true);
+
+    const conceptInput = new TextInputBuilder()
+        .setCustomId('coop_concept')
+        .setLabel('Konzept')
+        .setPlaceholder('Worum geht es bei deinem Projekt?')
+        .setStyle(TextInputStyle.Paragraph)
+        .setRequired(true);
+
+    const proposalInput = new TextInputBuilder()
+        .setCustomId('coop_proposal')
+        .setLabel('Vorschlag')
+        .setPlaceholder('Partnerschaft, Event, Shoutout, Content, Giveaway...')
+        .setStyle(TextInputStyle.Paragraph)
+        .setRequired(true);
+
+    const contactInput = new TextInputBuilder()
+        .setCustomId('coop_contact')
+        .setLabel('Kontakt')
+        .setPlaceholder('@username, E-Mail oder beste Kontaktmoeglichkeit')
+        .setStyle(TextInputStyle.Short)
+        .setRequired(false);
+
+    modal.addComponents(
+        new ActionRowBuilder().addComponents(projectInput),
+        new ActionRowBuilder().addComponents(statsInput),
+        new ActionRowBuilder().addComponents(conceptInput),
+        new ActionRowBuilder().addComponents(proposalInput),
+        new ActionRowBuilder().addComponents(contactInput)
+    );
+
+    return interaction.showModal(modal);
+}
+
+function buildTicketDetailsEmbed(type, details = {}) {
+    const fields = Object.entries(details)
+        .filter(([, value]) => String(value || '').trim())
+        .map(([name, value]) => ({
+            name,
+            value: cleanLogValue(value, 900),
+            inline: false
+        }));
+
+    if (!fields.length) {
+        return null;
+    }
+
+    return buildPanelEmbed({
+        title: type === 'cooperation' ? '📋 Cooperation Daten' : '📋 Support Details',
+        description: 'Diese Angaben kamen direkt aus dem Ticket-Formular.',
+        color: type === 'cooperation' ? '#f1c75b' : '#6a7dff',
+        fields,
+        footerText: 'VELOO&YESTERA // TICKET FORMULAR'
+    });
+}
+
 const TICKET_TOPIC_PREFIX = 'VELOO_TICKET';
 
 function buildTicketTopic(meta) {
@@ -1619,7 +1754,7 @@ async function updateTicketMeta(channel, patch) {
     return next;
 }
 
-async function handleOpenTicketButton(interaction, type) {
+async function handleOpenTicketButton(interaction, type, details = {}) {
     if (!interaction.inGuild()) {
         return replyToInteraction(interaction, {
             content: 'Tickets koennen nur im Server erstellt werden.',
@@ -1714,6 +1849,18 @@ async function handleOpenTicketButton(interaction, type) {
         components: [buildTicketControlRow('open')]
     });
 
+    const detailsEmbed = buildTicketDetailsEmbed(type, details);
+    if (detailsEmbed) {
+        await ticketChannel.send({ embeds: [detailsEmbed] }).catch(() => null);
+    }
+
+    await sendStaffLog('🎟️ Ticket erstellt', `${interaction.user} hat ein ${getTicketTypeLabel(type)} erstellt.`, [
+        { name: 'Ticket', value: `<#${ticketChannel.id}>`, inline: true },
+        { name: 'User', value: `${interaction.user} (${interaction.user.id})`, inline: true },
+        { name: 'Typ', value: getTicketTypeLabel(type), inline: true },
+        ...Object.entries(details).map(([name, value]) => ({ name, value, inline: false }))
+    ], type === 'cooperation' ? '#f1c75b' : '#6a7dff');
+
     return replyToInteraction(interaction, {
         content: `Dein ${getTicketTypeLabel(type)} wurde erstellt: <#${ticketChannel.id}>`,
         ephemeral: true
@@ -1760,9 +1907,99 @@ async function handleTicketDecision(interaction, status) {
         ? `\u2705 ${interaction.user} hat das Ticket angenommen.`
         : `\u274C ${interaction.user} hat die Anfrage abgelehnt.`;
 
+    await sendStaffLog(status === 'accepted' ? '✅ Ticket angenommen' : '❌ Ticket abgelehnt', text, [
+        { name: 'Ticket', value: `<#${interaction.channel.id}>`, inline: true },
+        { name: 'User', value: updatedMeta.userId ? `<@${updatedMeta.userId}>` : 'Unbekannt', inline: true },
+        { name: 'Bearbeitet von', value: `${interaction.user}`, inline: true }
+    ], status === 'accepted' ? '#2ecc71' : '#e67e22');
+
     return replyToInteraction(interaction, {
         content: text,
         ephemeral: false
+    });
+}
+
+async function buildTicketTranscript(channel) {
+    const collected = [];
+    let before;
+
+    while (collected.length < 500) {
+        const options = { limit: 100 };
+        if (before) {
+            options.before = before;
+        }
+
+        const batch = await channel.messages.fetch(options).catch(() => null);
+        if (!batch?.size) {
+            break;
+        }
+
+        collected.push(...batch.values());
+        before = batch.last()?.id;
+
+        if (batch.size < 100) {
+            break;
+        }
+    }
+
+    collected.sort((a, b) => a.createdTimestamp - b.createdTimestamp);
+
+    const lines = [
+        `VELOO&YESTERA Ticket Transcript`,
+        `Channel: #${channel.name} (${channel.id})`,
+        `Created: ${new Date().toISOString()}`,
+        ''
+    ];
+
+    for (const message of collected) {
+        const time = message.createdAt.toISOString();
+        const author = `${message.author?.tag || message.author?.username || 'Unknown'} (${message.author?.id || 'unknown'})`;
+        const content = message.content || '';
+        lines.push(`[${time}] ${author}: ${content || '[kein Text]'}`);
+
+        for (const embed of message.embeds || []) {
+            const title = embed.title ? `Title: ${embed.title}` : '';
+            const description = embed.description ? `Description: ${embed.description}` : '';
+            const fields = (embed.fields || []).map(field => `${field.name}: ${field.value}`).join(' | ');
+            lines.push(`  [Embed] ${[title, description, fields].filter(Boolean).join(' | ')}`);
+        }
+
+        for (const attachment of message.attachments.values()) {
+            lines.push(`  [Attachment] ${attachment.name || 'Datei'}: ${attachment.url}`);
+        }
+    }
+
+    return lines.join('\n');
+}
+
+async function sendTicketTranscriptToStaff(channel, meta, reason, actor = null) {
+    const staffChannel = await client.channels.fetch(STAFF_LOG_CHANNEL_ID).catch(() => null);
+    if (!staffChannel?.send) {
+        return;
+    }
+
+    const transcript = await buildTicketTranscript(channel);
+    const safeName = sanitizeChannelName(channel.name).slice(0, 42);
+    const file = new AttachmentBuilder(Buffer.from(transcript, 'utf8'), {
+        name: `${safeName}-transcript-${Date.now()}.txt`
+    });
+
+    const embed = buildPanelEmbed({
+        title: '🧾 Ticket Transcript',
+        description: `Ein Ticket wurde geschlossen/geloescht. Der Verlauf ist als Datei angehaengt.`,
+        color: '#d9c39a',
+        fields: [
+            { name: 'Ticket', value: `#${channel.name} (${channel.id})`, inline: false },
+            { name: 'Typ', value: getTicketTypeLabel(meta?.type || 'support'), inline: true },
+            { name: 'Member', value: meta?.userId ? `<@${meta.userId}>` : 'Unbekannt', inline: true },
+            { name: 'Aktion', value: reason, inline: true },
+            { name: 'Ausgeloest von', value: actor ? `${actor}` : 'System', inline: true }
+        ],
+        footerText: 'VELOO&YESTERA // STAFF LOG'
+    });
+
+    await staffChannel.send({ embeds: [embed], files: [file] }).catch(error => {
+        console.error('Ticket transcript log failed:', error.message);
     });
 }
 
@@ -1786,6 +2023,11 @@ async function handleTicketDelete(interaction) {
     await replyToInteraction(interaction, {
         content: 'Ticket wird geloescht...',
         ephemeral: true
+    });
+
+    const meta = parseTicketTopic(channel.topic || '');
+    await sendTicketTranscriptToStaff(channel, meta, 'Manuell geloescht', interaction.user).catch(error => {
+        console.error('Ticket transcript before delete failed:', error.message);
     });
 
     setTimeout(() => {
@@ -1824,6 +2066,10 @@ async function sendTicketIdleAlert(channel, meta) {
         const user = await client.users.fetch(TICKET_NOTIFY_USER_ID).catch(() => null);
         if (user) {
             await user.send({ embeds: [embed], components: [row] }).catch(() => null);
+            await sendStaffLog('⏰ Ticket inaktiv', `Erinnerung per DM verschickt fuer <#${channel.id}>.`, [
+                { name: 'Ticket', value: `<#${channel.id}>`, inline: true },
+                { name: 'Member', value: meta.userId ? `<@${meta.userId}>` : 'Unbekannt', inline: true }
+            ], '#d6a34e');
             return;
         }
     }
@@ -1834,6 +2080,10 @@ async function sendTicketIdleAlert(channel, meta) {
         embeds: [embed],
         components: [row]
     }).catch(() => null);
+    await sendStaffLog('⏰ Ticket inaktiv', `Erinnerung im Ticket verschickt fuer <#${channel.id}>.`, [
+        { name: 'Ticket', value: `<#${channel.id}>`, inline: true },
+        { name: 'Member', value: meta.userId ? `<@${meta.userId}>` : 'Unbekannt', inline: true }
+    ], '#d6a34e');
 }
 
 async function checkAcceptedTicketInactivity() {
@@ -1872,6 +2122,52 @@ async function checkAcceptedTicketInactivity() {
     }
 }
 
+async function checkVipExpiryReminders() {
+    const now = Date.now();
+
+    for (const [userId, record] of Object.entries(vipStatusStore.users || {})) {
+        if (!record.active || !record.currentPeriodEnd) {
+            continue;
+        }
+
+        const endAt = new Date(record.currentPeriodEnd).getTime();
+        if (!Number.isFinite(endAt)) {
+            continue;
+        }
+
+        if (endAt <= now) {
+            await removeVipRoleForUser(userId).catch(error => {
+                console.error(`VIP expiry remove failed for ${userId}:`, error.message);
+            });
+            upsertVipStatus(userId, {
+                active: false,
+                expiredAt: new Date().toISOString()
+            });
+            continue;
+        }
+
+        if (endAt - now > VIP_EXPIRY_REMINDER_MS || record.reminderSentAt) {
+            continue;
+        }
+
+        const user = await client.users.fetch(userId).catch(() => null);
+        if (user) {
+            await user.send(
+                `Dein VIP bei VELOO&YESTERA laeuft bald ab (${new Date(endAt).toLocaleString('de-DE', { timeZone: TIMEZONE })}). ` +
+                `Du kannst dein Abo hier verwalten: ${WEBSITE_URL}/vip.html`
+            ).catch(() => null);
+        }
+
+        upsertVipStatus(userId, {
+            reminderSentAt: new Date().toISOString()
+        });
+        await sendStaffLog('👑 VIP laeuft bald ab', `<@${userId}> wurde erinnert.`, [
+            { name: 'User', value: `<@${userId}>`, inline: true },
+            { name: 'Laeuft ab', value: new Date(endAt).toISOString(), inline: true }
+        ], '#f1c75b');
+    }
+}
+
 async function handleTicketIdleDecision(interaction, action, channelId) {
     const channel = await client.channels.fetch(channelId).catch(() => null);
     if (!channel || channel.type !== ChannelType.GuildText || !parseTicketTopic(channel.topic || '')) {
@@ -1897,6 +2193,10 @@ async function handleTicketIdleDecision(interaction, action, channelId) {
     }
 
     if (action === 'delete') {
+        const meta = parseTicketTopic(channel.topic || '');
+        await sendTicketTranscriptToStaff(channel, meta, 'Inaktiv per Reminder geloescht', interaction.user).catch(error => {
+            console.error('Idle ticket transcript failed:', error.message);
+        });
         await replyToInteraction(interaction, {
             content: `Ticket <#${channel.id}> wird geloescht.`,
             ephemeral: interaction.inGuild()
@@ -1909,6 +2209,9 @@ async function handleTicketIdleDecision(interaction, action, channelId) {
     await updateTicketMeta(channel, {
         idleAlertAt: Date.now()
     });
+    await sendStaffLog('⏳ Ticket bleibt offen', `${interaction.user} hat entschieden, <#${channel.id}> offen zu lassen.`, [
+        { name: 'Ticket', value: `<#${channel.id}>`, inline: true }
+    ], '#95a5a6');
 
     return replyToInteraction(interaction, {
         content: `Ticket <#${channel.id}> bleibt offen.`,
@@ -1930,6 +2233,46 @@ async function markTicketActivity(message) {
         lastActivityAt: Date.now(),
         idleAlertAt: 0
     });
+}
+
+async function handleAntiSpam(message) {
+    if (!message.guild || !message.member || memberCanManageTickets(message.member)) {
+        return false;
+    }
+
+    const accountAgeMs = Date.now() - message.author.createdTimestamp;
+    const accountAgeDays = accountAgeMs / (24 * 60 * 60 * 1000);
+    if (accountAgeDays < NEW_ACCOUNT_WARN_DAYS && !newAccountWarnings.has(message.author.id)) {
+        newAccountWarnings.add(message.author.id);
+        await sendStaffLog('🛡️ Neuer Account aktiv', `${message.author} hat mit einem jungen Account geschrieben.`, [
+            { name: 'User', value: `${message.author} (${message.author.id})`, inline: true },
+            { name: 'Account-Alter', value: `${accountAgeDays.toFixed(1)} Tage`, inline: true },
+            { name: 'Channel', value: `<#${message.channelId}>`, inline: true }
+        ], '#f1c75b');
+    }
+
+    const now = Date.now();
+    const history = (spamWindows.get(message.author.id) || []).filter(timestamp => now - timestamp < ANTI_SPAM_WINDOW_MS);
+    history.push(now);
+    spamWindows.set(message.author.id, history);
+
+    if (history.length <= ANTI_SPAM_MAX_MESSAGES) {
+        return false;
+    }
+
+    await message.delete().catch(() => null);
+    await sendTempMessage(
+        message.channel,
+        `<@${message.author.id}> bitte langsamer schreiben. Wenn du Hilfe brauchst, oeffne ein Support-Ticket.`,
+        7000
+    );
+    await sendStaffLog('🚨 Anti-Spam ausgelöst', `${message.author} hat zu schnell geschrieben.`, [
+        { name: 'User', value: `${message.author} (${message.author.id})`, inline: true },
+        { name: 'Nachrichten', value: `${history.length} in ${ANTI_SPAM_WINDOW_MS / 1000}s`, inline: true },
+        { name: 'Channel', value: `<#${message.channelId}>`, inline: true }
+    ], '#e74c3c');
+
+    return true;
 }
 
 function buildWelcomeGuideText(topicKey) {
@@ -2863,6 +3206,81 @@ async function replyToInteraction(interaction, payload) {
     return interaction.reply(payload).catch(() => null);
 }
 
+function cleanLogValue(value, limit = 900) {
+    const text = String(value ?? 'n/a').trim() || 'n/a';
+    return text.length > limit ? `${text.slice(0, limit - 3)}...` : text;
+}
+
+async function sendStaffLog(title, description, fields = [], color = '#d9c39a') {
+    if (!STAFF_LOG_CHANNEL_ID) {
+        return null;
+    }
+
+    const staffChannel = await client.channels.fetch(STAFF_LOG_CHANNEL_ID).catch(() => null);
+    if (!staffChannel?.send) {
+        return null;
+    }
+
+    const embed = new EmbedBuilder()
+        .setTitle(title)
+        .setDescription(cleanLogValue(description, 1800))
+        .setColor(color)
+        .setTimestamp();
+
+    const safeFields = fields
+        .filter(field => field && field.name)
+        .slice(0, 20)
+        .map(field => ({
+            name: cleanLogValue(field.name, 250),
+            value: cleanLogValue(field.value, 900),
+            inline: Boolean(field.inline)
+        }));
+
+    if (safeFields.length) {
+        embed.addFields(safeFields);
+    }
+
+    return staffChannel.send({ embeds: [embed] }).catch(error => {
+        console.error('Staff log failed:', error.message);
+        return null;
+    });
+}
+
+function loadVipStatusStore() {
+    try {
+        if (!fs.existsSync(VIP_STATUS_STORE_PATH)) {
+            return { users: {} };
+        }
+
+        const parsed = JSON.parse(fs.readFileSync(VIP_STATUS_STORE_PATH, 'utf8'));
+        return { users: parsed.users || {} };
+    } catch (error) {
+        console.error('VIP status store could not be loaded:', error.message);
+        return { users: {} };
+    }
+}
+
+function saveVipStatusStore() {
+    fs.writeFileSync(VIP_STATUS_STORE_PATH, JSON.stringify(vipStatusStore, null, 2));
+}
+
+function upsertVipStatus(userId, patch) {
+    if (!userId) {
+        return null;
+    }
+
+    const current = vipStatusStore.users[userId] || {};
+    const next = {
+        ...current,
+        ...patch,
+        userId,
+        updatedAt: new Date().toISOString()
+    };
+    vipStatusStore.users[userId] = next;
+    saveVipStatusStore();
+    return next;
+}
+
 function loadAiTokenStore() {
     try {
         if (!fs.existsSync(AI_TOKEN_STORE_PATH)) {
@@ -2920,6 +3338,12 @@ function addAiTokens(userId, amount, reason = 'manual') {
         createdAt: new Date().toISOString()
     });
     saveAiTokenStore();
+    sendStaffLog('🪙 AI Tokens gutgeschrieben', `<@${userId}> hat AI Tokens bekommen.`, [
+        { name: 'User', value: `<@${userId}>`, inline: true },
+        { name: 'Menge', value: String(cleanAmount), inline: true },
+        { name: 'Grund', value: reason, inline: true },
+        { name: 'Neuer Stand', value: String(record.balance), inline: true }
+    ], '#2ecc71').catch(() => null);
     return record;
 }
 
@@ -2946,6 +3370,13 @@ function spendAiTokens(userId, amount, usage = {}) {
         createdAt: new Date().toISOString()
     });
     saveAiTokenStore();
+    sendStaffLog('✨ AI Tokens verbraucht', `<@${userId}> hat die AI genutzt.`, [
+        { name: 'User', value: `<@${userId}>`, inline: true },
+        { name: 'Abgezogen', value: String(cleanAmount), inline: true },
+        { name: 'Rest', value: String(record.balance), inline: true },
+        { name: 'Input / Output', value: `${usage.inputTokens || 0} / ${usage.outputTokens || 0}`, inline: true },
+        { name: 'Grund', value: usage.reason || 'ai_usage', inline: true }
+    ], '#6a7dff').catch(() => null);
     return true;
 }
 
@@ -3095,8 +3526,20 @@ async function handleVerifyButton(interaction) {
         });
     }
 
+    await interaction.user.send({
+        content:
+            `Willkommen bei ${interaction.guild.name}. Du bist jetzt verifiziert.\n` +
+            `Starte hier: Regeln ${getChannelMention(RULES_CHANNEL_ID, 'Regeln')}, AI ${getChannelMention(AI_PANEL_CHANNEL_ID, 'Ask AI')}, Support ${getChannelMention(SUPPORT_TICKET_PANEL_CHANNEL_ID, 'Support')}.`
+    }).catch(() => null);
+
+    await sendStaffLog('✅ Member verifiziert', `${interaction.user} wurde verifiziert.`, [
+        { name: 'User', value: `${interaction.user} (${interaction.user.id})`, inline: true }
+    ], '#2ecc71');
+
     return replyToInteraction(interaction, {
-        content: '✅ Du bist verifiziert. Willkommen bei VELOO&YESTERA.',
+        content:
+            '✅ Du bist verifiziert. Willkommen bei VELOO&YESTERA.\n' +
+            'Naechste Schritte: Regeln lesen, Rollen waehlen und bei Fragen ein Support-Ticket oeffnen.',
         ephemeral: true
     });
 }
@@ -3145,7 +3588,7 @@ function buildAiChatPanel(userId) {
             },
             {
                 name: '⚡ Kosten',
-                value: 'Echte AI Tokens pro Antwort',
+                value: 'Abrechnung nach AI-Nutzung pro Antwort',
                 inline: true
             },
             {
@@ -3162,6 +3605,11 @@ function buildAiChatPanel(userId) {
         .setLabel('💬 Frage stellen')
         .setStyle(ButtonStyle.Primary);
 
+    const listingButton = new ButtonBuilder()
+        .setCustomId('ai_listing_generator')
+        .setLabel('🧾 Vinted Listing')
+        .setStyle(ButtonStyle.Success);
+
     const refreshButton = new ButtonBuilder()
         .setCustomId('ai_refresh_balance')
         .setLabel('🔄 Tokens aktualisieren')
@@ -3172,7 +3620,7 @@ function buildAiChatPanel(userId) {
         .setStyle(ButtonStyle.Link)
         .setURL(AI_BUY_TOKENS_URL);
 
-    const row = new ActionRowBuilder().addComponents(askButton, refreshButton, buyButton);
+    const row = new ActionRowBuilder().addComponents(askButton, listingButton, refreshButton, buyButton);
     return { embeds: [embed], components: [row] };
 }
 
@@ -3341,8 +3789,71 @@ async function handleOpenAiChatButton(interaction) {
     return interaction.editReply(`Dein privater AI-Chat ist bereit: <#${channel.id}>`);
 }
 
-async function handleAiQuestionSubmit(interaction) {
-    const question = interaction.fields.getTextInputValue('ai_question').trim();
+function showAiListingGeneratorModal(interaction) {
+    const modal = new ModalBuilder()
+        .setCustomId('ai_listing_modal')
+        .setTitle('Vinted Listing Generator');
+
+    const pieceInput = new TextInputBuilder()
+        .setCustomId('listing_piece')
+        .setLabel('Piece / Artikel')
+        .setPlaceholder('z.B. Diesel Jeans, Nike Zip Hoodie')
+        .setStyle(TextInputStyle.Short)
+        .setRequired(true);
+
+    const brandInput = new TextInputBuilder()
+        .setCustomId('listing_brand')
+        .setLabel('Marke')
+        .setPlaceholder('z.B. Diesel, Nike, Carhartt, No Name')
+        .setStyle(TextInputStyle.Short)
+        .setRequired(true);
+
+    const detailsInput = new TextInputBuilder()
+        .setCustomId('listing_details')
+        .setLabel('Groesse / Zustand / Besonderheiten')
+        .setPlaceholder('z.B. W32 L32, guter Zustand, leichter Fade, Baggy Fit')
+        .setStyle(TextInputStyle.Paragraph)
+        .setRequired(true);
+
+    const priceInput = new TextInputBuilder()
+        .setCustomId('listing_price')
+        .setLabel('Preisziel')
+        .setPlaceholder('z.B. schnell verkaufen ab 35 EUR, Zielpreis 49 EUR')
+        .setStyle(TextInputStyle.Short)
+        .setRequired(false);
+
+    const styleInput = new TextInputBuilder()
+        .setCustomId('listing_style')
+        .setLabel('Style / Zielgruppe')
+        .setPlaceholder('z.B. Y2K, Streetwear, Vintage, clean, Skater')
+        .setStyle(TextInputStyle.Short)
+        .setRequired(false);
+
+    modal.addComponents(
+        new ActionRowBuilder().addComponents(pieceInput),
+        new ActionRowBuilder().addComponents(brandInput),
+        new ActionRowBuilder().addComponents(detailsInput),
+        new ActionRowBuilder().addComponents(priceInput),
+        new ActionRowBuilder().addComponents(styleInput)
+    );
+
+    return interaction.showModal(modal);
+}
+
+function buildVintedListingPrompt(interaction) {
+    return (
+        'Erstelle ein professionelles Vinted Listing fuer dieses Piece. ' +
+        'Gib mir: 1. starken Titel, 2. verkaufsstarke Beschreibung, 3. Keywords, 4. Preisstrategie, 5. Foto-Tipps, 6. kurze Verhandlungsantworten.\n\n' +
+        `Piece: ${interaction.fields.getTextInputValue('listing_piece')}\n` +
+        `Marke: ${interaction.fields.getTextInputValue('listing_brand')}\n` +
+        `Details: ${interaction.fields.getTextInputValue('listing_details')}\n` +
+        `Preisziel: ${interaction.fields.getTextInputValue('listing_price') || 'nicht angegeben'}\n` +
+        `Style/Zielgruppe: ${interaction.fields.getTextInputValue('listing_style') || 'nicht angegeben'}`
+    );
+}
+
+async function handleAiQuestionSubmit(interaction, overrideQuestion = null) {
+    const question = (overrideQuestion || interaction.fields.getTextInputValue('ai_question')).trim();
     const record = getAiUserRecord(interaction.user.id);
 
     if (!question) {
@@ -5080,6 +5591,9 @@ client.once('ready', async () => {
     await checkAcceptedTicketInactivity().catch(error => {
         console.error('Ticket inactivity check failed on startup:', error.message);
     });
+    await checkVipExpiryReminders().catch(error => {
+        console.error('VIP expiry check failed on startup:', error.message);
+    });
 
     cron.schedule('*/5 * * * *', async () => {
         await refreshPanels();
@@ -5089,6 +5603,7 @@ client.once('ready', async () => {
         await closeExpiredMockupVotes();
         await closeExpiredOutfitVotes();
         await checkAcceptedTicketInactivity();
+        await checkVipExpiryReminders();
     }, { timezone: TIMEZONE });
 
     cron.schedule('0 4 * * *', async () => {
@@ -5211,6 +5726,10 @@ client.on('interactionCreate', async interaction => {
                 return interaction.showModal(modal);
             }
 
+            if (interaction.customId === 'ai_listing_generator') {
+                return showAiListingGeneratorModal(interaction);
+            }
+
             if (interaction.customId === 'ai_refresh_balance') {
                 await upsertAiChatPanel(interaction.channel, interaction.user.id);
                 return replyToInteraction(interaction, {
@@ -5220,11 +5739,11 @@ client.on('interactionCreate', async interaction => {
             }
 
             if (interaction.customId === 'open_support_ticket') {
-                return handleOpenTicketButton(interaction, 'support');
+                return showSupportTicketModal(interaction);
             }
 
             if (interaction.customId === 'open_cooperation_ticket') {
-                return handleOpenTicketButton(interaction, 'cooperation');
+                return showCooperationTicketModal(interaction);
             }
 
             if (interaction.customId === 'ticket_accept') {
@@ -5874,6 +6393,29 @@ client.on('interactionCreate', async interaction => {
                 return handleAiQuestionSubmit(interaction);
             }
 
+            if (interaction.customId === 'ai_listing_modal') {
+                return handleAiQuestionSubmit(interaction, buildVintedListingPrompt(interaction));
+            }
+
+            if (interaction.customId === 'support_ticket_modal') {
+                return handleOpenTicketButton(interaction, 'support', {
+                    'Anliegen': interaction.fields.getTextInputValue('support_topic'),
+                    'Beschreibung': interaction.fields.getTextInputValue('support_description'),
+                    'Dringlichkeit': interaction.fields.getTextInputValue('support_urgency') || 'normal',
+                    'Link / Screenshot': interaction.fields.getTextInputValue('support_link') || 'kein Link'
+                });
+            }
+
+            if (interaction.customId === 'cooperation_ticket_modal') {
+                return handleOpenTicketButton(interaction, 'cooperation', {
+                    'Name / Link': interaction.fields.getTextInputValue('coop_project'),
+                    'Stats': interaction.fields.getTextInputValue('coop_stats'),
+                    'Konzept': interaction.fields.getTextInputValue('coop_concept'),
+                    'Vorschlag': interaction.fields.getTextInputValue('coop_proposal'),
+                    'Kontakt': interaction.fields.getTextInputValue('coop_contact') || 'kein Kontakt angegeben'
+                });
+            }
+
             if (interaction.customId === 'upload_modal') {
                 activeUploads.set(interaction.user.id, {
                     type: 'sell',
@@ -6183,6 +6725,13 @@ client.on('messageCreate', async message => {
         return;
     }
 
+    if (await handleAntiSpam(message).catch(error => {
+        console.error('Anti-spam check failed:', error.message);
+        return false;
+    })) {
+        return;
+    }
+
     await markTicketActivity(message).catch(error => {
         console.error('Ticket activity update failed:', error.message);
     });
@@ -6333,6 +6882,13 @@ function startBotHttpServer() {
                 }
 
                 const result = await removeVipRoleForUser(discordUserId);
+                upsertVipStatus(discordUserId, {
+                    active: false,
+                    status: payload.status || reason,
+                    subscriptionId: payload.subscriptionId || null,
+                    revokeReason: reason,
+                    reminderSentAt: null
+                });
                 console.log(`VIP revoke sync for ${discordUserId}: ${reason}`, result);
 
                 return sendJsonResponse(response, 200, {
@@ -6343,6 +6899,78 @@ function startBotHttpServer() {
             } catch (error) {
                 console.error('VIP revoke endpoint failed:', error.message);
                 return sendJsonResponse(response, 500, { error: 'vip_revoke_failed' });
+            }
+        }
+
+        if (request.method === 'POST' && url.pathname === '/api/vip-status') {
+            if (!isAuthorizedBotSync(request)) {
+                return sendJsonResponse(response, 401, { error: 'unauthorized' });
+            }
+
+            try {
+                const payload = await readJsonBody(request);
+                const discordUserId = String(payload.discordUserId || '').trim();
+
+                if (!/^\d{16,25}$/.test(discordUserId)) {
+                    return sendJsonResponse(response, 400, { error: 'invalid_user' });
+                }
+
+                const statusRecord = upsertVipStatus(discordUserId, {
+                    active: Boolean(payload.active),
+                    status: String(payload.status || ''),
+                    subscriptionId: payload.subscriptionId || null,
+                    currentPeriodEnd: payload.currentPeriodEnd || null,
+                    plan: payload.plan || null,
+                    reminderSentAt: payload.resetReminder ? null : vipStatusStore.users[discordUserId]?.reminderSentAt || null
+                });
+
+                await sendStaffLog('👑 VIP Status aktualisiert', `<@${discordUserId}> VIP Status wurde synchronisiert.`, [
+                    { name: 'User', value: `<@${discordUserId}>`, inline: true },
+                    { name: 'Aktiv', value: String(statusRecord.active), inline: true },
+                    { name: 'Status', value: statusRecord.status || 'n/a', inline: true },
+                    { name: 'Ende', value: statusRecord.currentPeriodEnd || 'n/a', inline: true }
+                ], '#d9c39a');
+
+                return sendJsonResponse(response, 200, {
+                    ok: true,
+                    discordUserId,
+                    vip: statusRecord
+                });
+            } catch (error) {
+                console.error('VIP status endpoint failed:', error.message);
+                return sendJsonResponse(response, 500, { error: 'vip_status_failed' });
+            }
+        }
+
+        if (request.method === 'POST' && url.pathname === '/api/account-status') {
+            if (!isAuthorizedBotSync(request)) {
+                return sendJsonResponse(response, 401, { error: 'unauthorized' });
+            }
+
+            try {
+                const payload = await readJsonBody(request);
+                const discordUserId = String(payload.discordUserId || '').trim();
+
+                if (!/^\d{16,25}$/.test(discordUserId)) {
+                    return sendJsonResponse(response, 400, { error: 'invalid_user' });
+                }
+
+                const tokenRecord = getAiUserRecord(discordUserId);
+                const vipRecord = vipStatusStore.users[discordUserId] || null;
+
+                return sendJsonResponse(response, 200, {
+                    ok: true,
+                    discordUserId,
+                    tokens: {
+                        balance: Number(tokenRecord.balance || 0),
+                        totalGranted: Number(tokenRecord.totalGranted || 0),
+                        totalUsed: Number(tokenRecord.totalUsed || 0)
+                    },
+                    vip: vipRecord
+                });
+            } catch (error) {
+                console.error('Account status endpoint failed:', error.message);
+                return sendJsonResponse(response, 500, { error: 'account_status_failed' });
             }
         }
 
