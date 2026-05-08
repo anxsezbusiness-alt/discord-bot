@@ -57,7 +57,7 @@ const OUTFIT_PANEL_TITLE = 'POSTE DEINEN FIT';
 const OUTFIT_DAILY_CRON = process.env.OUTFIT_DAILY_CRON || '0 0 * * *';
 const ISO_CHANNEL_ID = process.env.ISO_CHANNEL_ID || '1492913251577626724';
 const ISO_PANEL_TITLE = 'SUCHE / ISO';
-const COOPERATION_CHANNEL_ID = process.env.COOPERATION_CHANNEL_ID || '1500941631606624396';
+const COOPERATION_CHANNEL_ID = process.env.COOPERATION_CHANNEL_ID || '1492261552697643178';
 const CREATOR_CHANNEL_ID = process.env.CREATOR_CHANNEL_ID || '1501550981421207562';
 const CREATOR_REVIEW_CHANNEL_ID = process.env.CREATOR_REVIEW_CHANNEL_ID || '1492261750110949509';
 const MONTHLY_ACTIVITY_CHANNEL_ID = process.env.MONTHLY_ACTIVITY_CHANNEL_ID || '1500944487357223092';
@@ -71,6 +71,12 @@ const UNVERIFIED_ROLE_ID = process.env.UNVERIFIED_ROLE_ID || '149246986470149327
 const VERIFIED_ROLE_ID = process.env.VERIFIED_ROLE_ID || '1492463758864416829';
 const AI_PANEL_CHANNEL_ID = process.env.AI_PANEL_CHANNEL_ID || '1501914878716280833';
 const SERVER_GUIDE_CHANNEL_ID = process.env.SERVER_GUIDE_CHANNEL_ID || '1502274806354280644';
+const AI_EXPLAINER_CHANNEL_ID = process.env.AI_EXPLAINER_CHANNEL_ID || '1502297892336173066';
+const SUPPORT_TICKET_PANEL_CHANNEL_ID = process.env.SUPPORT_TICKET_PANEL_CHANNEL_ID || '1492255500434407632';
+const TICKET_CATEGORY_ID = process.env.TICKET_CATEGORY_ID || '1502339213176344796';
+const TICKET_NOTIFY_USER_ID = process.env.TICKET_NOTIFY_USER_ID || null;
+const TICKET_IDLE_HOURS = Number(process.env.TICKET_IDLE_HOURS || 24);
+const TICKET_IDLE_MS = TICKET_IDLE_HOURS * 60 * 60 * 1000;
 const AI_CHANNEL_CATEGORY_ID = process.env.AI_CHANNEL_CATEGORY_ID || null;
 const AI_TOKEN_STORE_PATH = process.env.AI_TOKEN_STORE_PATH || path.join(__dirname, 'ai-token-store.json');
 const AI_BUY_TOKENS_URL = process.env.AI_BUY_TOKENS_URL || 'https://www.veloo.org/vip.html#ai-tokens';
@@ -95,8 +101,14 @@ const MAIN_REPLY_COOLDOWN_MS = Number(process.env.MAIN_REPLY_COOLDOWN_MS || 3000
 const TRUSTED_SELLER_ROLE_ID = process.env.TRUSTED_SELLER_ROLE_ID || null;
 const TRUSTED_SELLER_ROLE_NAME = process.env.TRUSTED_SELLER_ROLE_NAME || '𝐓𝐫𝐮𝐬𝐭𝐞𝐝𝐒𝐞𝐥𝐥𝐞𝐫';
 const TRUSTED_SELLER_MIN_SALES = Number(process.env.TRUSTED_SELLER_MIN_SALES || 5);
-const OPENAI_INSTRUCTIONS =
-    'Du bist die VELOO&YESTERA AI im Discord. Antworte hilfreich, direkt und freundlich auf Deutsch. Halte Antworten klar und praktisch.';
+const OPENAI_INSTRUCTIONS = [
+    'Du bist die VELOO&YESTERA AI im Discord.',
+    'Dein Fokus ist Vinted: bessere Listings, Titel, Beschreibungen, Preisideen, Fotos, Produktpositionierung, Bundle-Strategien, Verhandlung, Buyer-Messages, Marketing-Taktiken, Content-Ideen und Schritt-fuer-Schritt Tutorials fuer Vintage, Resell und Creator.',
+    'Wenn eine Frage nicht zu Vinted, Resell, Marketing, Verkauf, Content, Branding oder Community-Aufbau passt, leite freundlich zurueck auf diese Themen.',
+    'Gib klare, praktische Antworten mit konkreten Beispielen. Wenn sinnvoll, erstelle fertige Vinted-Titel, Beschreibungen, Preisanker, DM-Vorlagen, Upload-Plaene oder Checklisten.',
+    'Keine Scam-Taktiken, keine gefaelschten Markenangaben, keine Umgehung von Plattformregeln, keine Garantien fuer Umsatz. Bleib ehrlich, hilfreich und umsetzbar.',
+    'Erwaehne oeffentlich nie den Anbieter oder interne API-Details. Sprich nur von AI.'
+].join(' ');
 const OWNER_ROLE_ID = process.env.OWNER_ROLE_ID || null;
 const OWNER_ROLE_NAME = process.env.OWNER_ROLE_NAME || '𝘖𝘸𝘯𝘦𝘳';
 const CONTENT_CREATOR_ROLE_ID = process.env.CONTENT_CREATOR_ROLE_ID || null;
@@ -107,6 +119,9 @@ const SELL_PANEL_TITLE = 'VELOO ARCHIVE / MARKT';
 const TEAM_PANEL_TITLE = 'VELOO ARCHIVE / TEAMFINDER';
 const WELCOME_PANEL_TITLE = 'WILLKOMMEN BEI VELOO ARCHIVE';
 const ROLE_PANEL_TITLE = 'VELOO&YESTERA / ROLLEN';
+const SUPPORT_TICKET_PANEL_TITLE = '\uD83C\uDF9F\uFE0F SUPPORT TICKETS';
+const COOPERATION_REQUEST_PANEL_TITLE = '\uD83E\uDD1D VELO COLLABORATION PROTOCOL';
+const AI_EXPLAINER_PANEL_TITLE = '\u2728 VELOO&YESTERA AI & TOKEN GUIDE';
 const SERVER_GUIDE_PANEL_TITLE = '🧭 VELOO&YESTERA SERVER GUIDE';
 const VERIFICATION_PANEL_TITLE = '✅ VELOO&YESTERA VERIFICATION';
 const RULES_PANEL_TITLE = '📜 VELOO&YESTERA REGELN';
@@ -1291,6 +1306,630 @@ async function sendServerGuidePanel() {
     }
 
     await upsertPanelMessage(guideChannel, SERVER_GUIDE_PANEL_TITLE, buildServerGuidePanel());
+}
+
+function buildAiExplainerPanel() {
+    const aiPanelUrl = `https://discord.com/channels/${BOT_GUILD_ID}/${AI_PANEL_CHANNEL_ID}`;
+
+    const embed = buildPanelEmbed({
+        title: AI_EXPLAINER_PANEL_TITLE,
+        description:
+            'Diese AI ist fuer Vinted, Vintage, Resell und Creator-Verkauf gebaut. Sie hilft dir dabei, bessere Listings zu erstellen, smarter zu vermarkten und deine Pieces klarer zu verkaufen.',
+        color: '#6a7dff',
+        fields: [
+            {
+                name: '\uD83C\uDFAF Wofuer die AI da ist',
+                value:
+                    'Die AI ist spezialisiert auf Vinted: Titel, Beschreibungen, Preise, Fotos, Keywords, Hashtags, Upload-Planung, Bundle-Taktiken, Rabatt-Strategien, Buyer-Messages, Verhandlung, Content-Ideen, Marketing-Tipps und Schritt-fuer-Schritt Tutorials.',
+                inline: false
+            },
+            {
+                name: '\uD83D\uDCA1 Gute Fragen, die du stellen kannst',
+                value:
+                    'Beispiele: "Mach mir einen starken Vinted Titel fuer diese Diesel Jeans", "Wie preise ich diese Jacke?", "Schreib mir eine Beschreibung, die verkauft", "Welche Fotos brauche ich?", "Wie antworte ich auf einen Preisvorschlag?", "Gib mir einen 7-Tage Upload Plan."',
+                inline: false
+            },
+            {
+                name: '\uD83D\uDC8E Was AI Tokens machen',
+                value:
+                    'AI Tokens sind dein Guthaben fuer die AI. Tokens werden benutzt, wenn die AI Text liest, versteht und eine Antwort schreibt. Kurze Fragen mit kurzen Antworten verbrauchen wenig. Lange Fragen, viele Details und lange Tutorials verbrauchen mehr.',
+                inline: false
+            },
+            {
+                name: '\uD83E\uDDFE Wie abgerechnet wird',
+                value:
+                    'Es ist nicht "1 Frage = 1 Token". Abgerechnet wird nach echter Nutzung: deine Frage plus die Antwort der AI. Wenn eine Antwort z.B. 550 AI Tokens braucht, werden 550 abgezogen. Wenn die AI nicht antworten kann, werden keine Tokens abgezogen.',
+                inline: false
+            },
+            {
+                name: '\uD83D\uDCC8 So nutzt du Tokens am besten',
+                value:
+                    'Schick der AI klare Infos: Marke, Groesse, Zustand, Preisziel, Fotosituation und Zielgruppe. Je genauer du fragst, desto besser kann sie dir fertige Listing-Texte, Preisanker, Verkaufsargumente und konkrete naechste Schritte geben.',
+                inline: false
+            },
+            {
+                name: '\u26A0\uFE0F Fair & ehrlich',
+                value:
+                    'Die AI hilft beim Verkaufen, aber sie garantiert keine Sales. Sie soll keine Fake-Marken, Scam-Texte oder Tricks gegen Plattformregeln erstellen. Ziel ist: bessere Listings, ehrliches Marketing und smartere Verkaufstaktik.',
+                inline: false
+            }
+        ],
+        footerText: 'VELOO&YESTERA // AI FUER VINTED, RESELL & MARKETING'
+    });
+
+    const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+            .setLabel('\u2728 Ask AI')
+            .setStyle(ButtonStyle.Link)
+            .setURL(aiPanelUrl),
+        new ButtonBuilder()
+            .setLabel('\uD83D\uDED2 Tokens kaufen')
+            .setStyle(ButtonStyle.Link)
+            .setURL(AI_BUY_TOKENS_URL),
+        new ButtonBuilder()
+            .setLabel('\uD83C\uDF10 Website')
+            .setStyle(ButtonStyle.Link)
+            .setURL(WEBSITE_URL)
+    );
+
+    return { embeds: [embed], components: [row] };
+}
+
+async function sendAiExplainerPanel() {
+    const explainerChannel = await client.channels.fetch(AI_EXPLAINER_CHANNEL_ID).catch(() => null);
+    if (!explainerChannel) {
+        return;
+    }
+
+    await upsertPanelMessage(explainerChannel, AI_EXPLAINER_PANEL_TITLE, buildAiExplainerPanel());
+}
+
+function buildSupportTicketPanel() {
+    const embed = buildPanelEmbed({
+        title: SUPPORT_TICKET_PANEL_TITLE,
+        description:
+            'Mit einem Ticket oeffnest du einen privaten Chat mit dem Support-Team, um Hilfe oder Anliegen direkt zu klaeren.',
+        color: '#f1c75b',
+        fields: [
+            {
+                name: '\uD83D\uDCCC Bitte erstelle ein Ticket nur fuer',
+                value:
+                    '\uD83D\uDD27 Hilfe\n' +
+                    '\uD83D\uDC1B Bug Reports\n' +
+                    '\uD83D\uDCAC Sonstige Fragen',
+                inline: false
+            },
+            {
+                name: '\uD83D\uDCDD Wichtig',
+                value: 'Beschreibe dein Problem kurz und klar, damit wir dir schnell helfen koennen.',
+                inline: false
+            }
+        ],
+        footerText: 'Powered by VELOO&YESTERA Tickets'
+    });
+
+    const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+            .setCustomId('open_support_ticket')
+            .setLabel('\uD83C\uDF9F\uFE0F Create Ticket')
+            .setStyle(ButtonStyle.Primary)
+    );
+
+    return { embeds: [embed], components: [row] };
+}
+
+async function sendSupportTicketPanel() {
+    const supportChannel = await client.channels.fetch(SUPPORT_TICKET_PANEL_CHANNEL_ID).catch(() => null);
+    if (!supportChannel) {
+        return;
+    }
+
+    await upsertPanelMessage(supportChannel, SUPPORT_TICKET_PANEL_TITLE, buildSupportTicketPanel());
+}
+
+function buildCooperationRequestPanel() {
+    const embed = buildPanelEmbed({
+        title: COOPERATION_REQUEST_PANEL_TITLE,
+        description:
+            'Um den Prozess zu beschleunigen, sende uns im Ticket bitte direkt folgende Informationen:',
+        color: '#f1c75b',
+        fields: [
+            {
+                name: 'PROJECT-DATA',
+                value:
+                    '\uD83D\uDD17 Name/Link: Server-Link, Instagram oder Website\n' +
+                    '\uD83D\uDCCA Stats: Memberzahl oder Engagement-Rate\n' +
+                    '\uD83D\uDCDD Konzept: kurze Beschreibung, worum es geht\n' +
+                    '\uD83D\uDCA1 Vorschlag: Partnerschaft, Event, Shoutout oder anderer Wunsch',
+                inline: false
+            },
+            {
+                name: '\uD83D\uDD0E Review',
+                value: 'Unser Management-Team prueft deine Daten und meldet sich im privaten Ticket.',
+                inline: false
+            }
+        ],
+        footerText: 'LEVO archive. // COOPERATION REQUEST'
+    });
+
+    const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+            .setCustomId('open_cooperation_ticket')
+            .setLabel('\uD83C\uDF9F\uFE0F Create Ticket')
+            .setStyle(ButtonStyle.Primary)
+    );
+
+    return { embeds: [embed], components: [row] };
+}
+
+const TICKET_TOPIC_PREFIX = 'VELOO_TICKET';
+
+function buildTicketTopic(meta) {
+    return [
+        TICKET_TOPIC_PREFIX,
+        `type=${meta.type}`,
+        `user=${meta.userId}`,
+        `status=${meta.status}`,
+        `created=${meta.createdAt || Date.now()}`,
+        `accepted=${meta.acceptedAt || 0}`,
+        `last=${meta.lastActivityAt || Date.now()}`,
+        `idleAlert=${meta.idleAlertAt || 0}`
+    ].join(' ').slice(0, 1024);
+}
+
+function parseTicketTopic(topic = '') {
+    if (!topic.startsWith(TICKET_TOPIC_PREFIX)) {
+        return null;
+    }
+
+    const meta = {};
+    for (const match of topic.matchAll(/(\w+)=([^\s]+)/g)) {
+        meta[match[1]] = match[2];
+    }
+
+    return {
+        type: meta.type || 'support',
+        userId: meta.user || null,
+        status: meta.status || 'open',
+        createdAt: Number(meta.created || Date.now()),
+        acceptedAt: Number(meta.accepted || 0),
+        lastActivityAt: Number(meta.last || Date.now()),
+        idleAlertAt: Number(meta.idleAlert || 0)
+    };
+}
+
+function findRoleByCandidates(guild, roleId, candidates) {
+    const directRole = findRoleByIdOrName(guild, roleId, candidates[0]);
+    if (directRole) {
+        return directRole;
+    }
+
+    const loweredCandidates = candidates
+        .filter(Boolean)
+        .map(candidate => candidate.toLowerCase());
+
+    return guild.roles.cache.find(role =>
+        loweredCandidates.includes(role.name.toLowerCase())
+    ) || null;
+}
+
+function findTicketTeamRoles(guild) {
+    return {
+        ownerRole: findRoleByCandidates(guild, OWNER_ROLE_ID, [OWNER_ROLE_NAME, 'Owner', '𝘖𝘸𝘯𝘦𝘳']),
+        moderatorRole: findRoleByCandidates(guild, MODERATOR_ROLE_ID, [EFFECTIVE_MODERATOR_ROLE_NAME, 'Moderator', '𝘔𝘰𝘥𝘦𝘳𝘢𝘵𝘰𝘳'])
+    };
+}
+
+function memberCanManageTickets(member) {
+    if (!member) {
+        return false;
+    }
+
+    const { ownerRole, moderatorRole } = findTicketTeamRoles(member.guild);
+    return (
+        memberHasOwnerRole(member) ||
+        (ownerRole && member.roles.cache.has(ownerRole.id)) ||
+        (moderatorRole && member.roles.cache.has(moderatorRole.id)) ||
+        memberHasRoleByIdOrName(member, MODERATOR_ROLE_ID, EFFECTIVE_MODERATOR_ROLE_NAME)
+    );
+}
+
+function sanitizeChannelName(value) {
+    return String(value || 'member')
+        .toLowerCase()
+        .normalize('NFKD')
+        .replace(/[^\w\s-]/g, '')
+        .trim()
+        .replace(/\s+/g, '-')
+        .replace(/_+/g, '-')
+        .slice(0, 32) || 'member';
+}
+
+function buildTicketControlRow(status = 'open') {
+    const isOpen = status === 'open';
+    return new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+            .setCustomId('ticket_accept')
+            .setLabel('\u2705 Annehmen')
+            .setStyle(ButtonStyle.Success)
+            .setDisabled(!isOpen),
+        new ButtonBuilder()
+            .setCustomId('ticket_decline')
+            .setLabel('\u274C Ablehnen')
+            .setStyle(ButtonStyle.Secondary)
+            .setDisabled(!isOpen),
+        new ButtonBuilder()
+            .setCustomId('ticket_delete')
+            .setLabel('\uD83D\uDDD1\uFE0F Loeschen')
+            .setStyle(ButtonStyle.Danger)
+    );
+}
+
+function getTicketTypeLabel(type) {
+    return type === 'cooperation' ? 'Cooperation Request' : 'Support Ticket';
+}
+
+function buildTicketChannelEmbed(type, requester, status = 'open') {
+    const statusText = {
+        open: '\u23F3 Offen - Team kann annehmen oder ablehnen',
+        accepted: '\u2705 Angenommen - Ticket wird bearbeitet',
+        declined: '\u274C Abgelehnt - Ticket kann geloescht werden'
+    }[status] || status;
+
+    const embed = buildPanelEmbed({
+        title: `${type === 'cooperation' ? '\uD83E\uDD1D' : '\uD83C\uDF9F\uFE0F'} ${getTicketTypeLabel(type)}`,
+        description:
+            `${requester} hat ein ${getTicketTypeLabel(type)} erstellt.\n` +
+            'Owner und Moderatoren koennen die Anfrage zuerst annehmen oder ablehnen. Wenn alles erledigt ist, kann der Channel geloescht werden.',
+        color: type === 'cooperation' ? '#f1c75b' : '#6a7dff',
+        fields: [
+            {
+                name: 'Status',
+                value: statusText,
+                inline: false
+            },
+            {
+                name: type === 'cooperation' ? 'Was du jetzt senden solltest' : 'Was du jetzt beschreiben solltest',
+                value: type === 'cooperation'
+                    ? 'Name/Link, Stats, Konzept und deinen konkreten Vorschlag fuer die Cooperation.'
+                    : 'Beschreibe dein Problem kurz, klar und mit allen wichtigen Details.',
+                inline: false
+            }
+        ],
+        footerText: 'VELOO&YESTERA // PRIVATE TICKET'
+    });
+
+    return embed;
+}
+
+async function updateTicketMeta(channel, patch) {
+    const current = parseTicketTopic(channel.topic || '') || {};
+    const next = {
+        type: current.type || patch.type || 'support',
+        userId: current.userId || patch.userId || null,
+        status: current.status || patch.status || 'open',
+        createdAt: current.createdAt || patch.createdAt || Date.now(),
+        acceptedAt: current.acceptedAt || patch.acceptedAt || 0,
+        lastActivityAt: current.lastActivityAt || patch.lastActivityAt || Date.now(),
+        idleAlertAt: current.idleAlertAt || patch.idleAlertAt || 0,
+        ...patch
+    };
+
+    await channel.setTopic(buildTicketTopic(next)).catch(() => null);
+    return next;
+}
+
+async function handleOpenTicketButton(interaction, type) {
+    if (!interaction.inGuild()) {
+        return replyToInteraction(interaction, {
+            content: 'Tickets koennen nur im Server erstellt werden.',
+            ephemeral: true
+        });
+    }
+
+    await interaction.guild.roles.fetch().catch(() => null);
+    const existingChannel = interaction.guild.channels.cache.find(channel => {
+        if (channel.type !== ChannelType.GuildText) {
+            return false;
+        }
+        const meta = parseTicketTopic(channel.topic || '');
+        return meta?.userId === interaction.user.id &&
+            meta.type === type &&
+            meta.status !== 'declined';
+    });
+
+    if (existingChannel) {
+        return replyToInteraction(interaction, {
+            content: `Du hast schon ein offenes ${getTicketTypeLabel(type)}: <#${existingChannel.id}>`,
+            ephemeral: true
+        });
+    }
+
+    const { ownerRole, moderatorRole } = findTicketTeamRoles(interaction.guild);
+    const parentChannel = await interaction.guild.channels.fetch(TICKET_CATEGORY_ID).catch(() => null);
+    const parentId = parentChannel?.type === ChannelType.GuildCategory ? parentChannel.id : null;
+    const channelName = `${type === 'cooperation' ? 'coop' : 'support'}-${sanitizeChannelName(interaction.user.username)}`;
+    const permissionOverwrites = [
+        {
+            id: interaction.guild.id,
+            deny: [PermissionsBitField.Flags.ViewChannel]
+        },
+        {
+            id: interaction.user.id,
+            allow: [
+                PermissionsBitField.Flags.ViewChannel,
+                PermissionsBitField.Flags.SendMessages,
+                PermissionsBitField.Flags.ReadMessageHistory,
+                PermissionsBitField.Flags.AttachFiles
+            ]
+        },
+        {
+            id: client.user.id,
+            allow: [
+                PermissionsBitField.Flags.ViewChannel,
+                PermissionsBitField.Flags.SendMessages,
+                PermissionsBitField.Flags.ReadMessageHistory,
+                PermissionsBitField.Flags.ManageChannels
+            ]
+        }
+    ];
+
+    for (const role of [ownerRole, moderatorRole].filter(Boolean)) {
+        permissionOverwrites.push({
+            id: role.id,
+            allow: [
+                PermissionsBitField.Flags.ViewChannel,
+                PermissionsBitField.Flags.SendMessages,
+                PermissionsBitField.Flags.ReadMessageHistory,
+                PermissionsBitField.Flags.ManageChannels
+            ]
+        });
+    }
+
+    const createdAt = Date.now();
+    const ticketChannel = await interaction.guild.channels.create({
+        name: channelName,
+        type: ChannelType.GuildText,
+        parent: parentId || undefined,
+        topic: buildTicketTopic({
+            type,
+            userId: interaction.user.id,
+            status: 'open',
+            createdAt,
+            lastActivityAt: createdAt,
+            acceptedAt: 0,
+            idleAlertAt: 0
+        }),
+        permissionOverwrites
+    });
+
+    const teamMention = [
+        ownerRole ? `<@&${ownerRole.id}>` : null,
+        moderatorRole ? `<@&${moderatorRole.id}>` : null
+    ].filter(Boolean).join(' ');
+
+    await ticketChannel.send({
+        content: `${interaction.user} ${teamMention}`.trim(),
+        embeds: [buildTicketChannelEmbed(type, interaction.user, 'open')],
+        components: [buildTicketControlRow('open')]
+    });
+
+    return replyToInteraction(interaction, {
+        content: `Dein ${getTicketTypeLabel(type)} wurde erstellt: <#${ticketChannel.id}>`,
+        ephemeral: true
+    });
+}
+
+async function handleTicketDecision(interaction, status) {
+    if (!interaction.inGuild() || interaction.channel?.type !== ChannelType.GuildText) {
+        return replyToInteraction(interaction, {
+            content: 'Diese Aktion funktioniert nur in einem Ticket-Channel.',
+            ephemeral: true
+        });
+    }
+
+    const member = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
+    if (!memberCanManageTickets(member)) {
+        return replyToInteraction(interaction, {
+            content: 'Nur Owner oder Moderatoren koennen Tickets annehmen oder ablehnen.',
+            ephemeral: true
+        });
+    }
+
+    const meta = parseTicketTopic(interaction.channel.topic || '');
+    if (!meta) {
+        return replyToInteraction(interaction, {
+            content: 'Dieser Channel ist kein Ticket-Channel.',
+            ephemeral: true
+        });
+    }
+
+    const updatedMeta = await updateTicketMeta(interaction.channel, {
+        status,
+        acceptedAt: status === 'accepted' ? Date.now() : meta.acceptedAt,
+        lastActivityAt: Date.now(),
+        idleAlertAt: 0
+    });
+
+    await interaction.message.edit({
+        embeds: [buildTicketChannelEmbed(updatedMeta.type, `<@${updatedMeta.userId}>`, updatedMeta.status)],
+        components: [buildTicketControlRow(updatedMeta.status)]
+    }).catch(() => null);
+
+    const text = status === 'accepted'
+        ? `\u2705 ${interaction.user} hat das Ticket angenommen.`
+        : `\u274C ${interaction.user} hat die Anfrage abgelehnt.`;
+
+    return replyToInteraction(interaction, {
+        content: text,
+        ephemeral: false
+    });
+}
+
+async function handleTicketDelete(interaction) {
+    const channel = interaction.channel;
+    if (!interaction.inGuild() || channel?.type !== ChannelType.GuildText || !parseTicketTopic(channel.topic || '')) {
+        return replyToInteraction(interaction, {
+            content: 'Diese Aktion funktioniert nur in einem Ticket-Channel.',
+            ephemeral: true
+        });
+    }
+
+    const member = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
+    if (!memberCanManageTickets(member)) {
+        return replyToInteraction(interaction, {
+            content: 'Nur Owner oder Moderatoren koennen Tickets loeschen.',
+            ephemeral: true
+        });
+    }
+
+    await replyToInteraction(interaction, {
+        content: 'Ticket wird geloescht...',
+        ephemeral: true
+    });
+
+    setTimeout(() => {
+        channel.delete('Ticket per Button geloescht').catch(error => {
+            console.error('Ticket delete failed:', error.message);
+        });
+    }, 1200);
+}
+
+async function sendTicketIdleAlert(channel, meta) {
+    const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+            .setCustomId(`ticket_idle_delete_${channel.id}`)
+            .setLabel('\uD83D\uDDD1\uFE0F Loeschen')
+            .setStyle(ButtonStyle.Danger),
+        new ButtonBuilder()
+            .setCustomId(`ticket_idle_keep_${channel.id}`)
+            .setLabel('\u23F3 Noch lassen')
+            .setStyle(ButtonStyle.Secondary)
+    );
+
+    const embed = buildPanelEmbed({
+        title: '\u23F0 Ticket lange inaktiv',
+        description:
+            `Das Ticket <#${channel.id}> wurde angenommen, aber seit ca. ${TICKET_IDLE_HOURS} Stunden nicht mehr beschrieben.\n` +
+            'Soll der Bot den Channel loeschen oder noch offen lassen?',
+        color: '#d6a34e',
+        fields: [
+            { name: 'Ticket', value: getTicketTypeLabel(meta.type), inline: true },
+            { name: 'Member', value: meta.userId ? `<@${meta.userId}>` : 'Unbekannt', inline: true }
+        ],
+        footerText: 'VELOO&YESTERA // TICKET REMINDER'
+    });
+
+    if (TICKET_NOTIFY_USER_ID) {
+        const user = await client.users.fetch(TICKET_NOTIFY_USER_ID).catch(() => null);
+        if (user) {
+            await user.send({ embeds: [embed], components: [row] }).catch(() => null);
+            return;
+        }
+    }
+
+    const { ownerRole } = findTicketTeamRoles(channel.guild);
+    await channel.send({
+        content: ownerRole ? `<@&${ownerRole.id}>` : 'Owner',
+        embeds: [embed],
+        components: [row]
+    }).catch(() => null);
+}
+
+async function checkAcceptedTicketInactivity() {
+    const guild = client.guilds.cache.get(BOT_GUILD_ID) || await client.guilds.fetch(BOT_GUILD_ID).catch(() => null);
+    if (!guild) {
+        return;
+    }
+
+    await guild.channels.fetch().catch(() => null);
+    const now = Date.now();
+
+    for (const channel of guild.channels.cache.values()) {
+        if (channel.type !== ChannelType.GuildText) {
+            continue;
+        }
+
+        const meta = parseTicketTopic(channel.topic || '');
+        if (!meta || meta.status !== 'accepted') {
+            continue;
+        }
+
+        if (TICKET_CATEGORY_ID && channel.parentId !== TICKET_CATEGORY_ID) {
+            continue;
+        }
+
+        if (now - meta.lastActivityAt < TICKET_IDLE_MS) {
+            continue;
+        }
+
+        if (meta.idleAlertAt && now - meta.idleAlertAt < TICKET_IDLE_MS) {
+            continue;
+        }
+
+        await sendTicketIdleAlert(channel, meta);
+        await updateTicketMeta(channel, { idleAlertAt: now });
+    }
+}
+
+async function handleTicketIdleDecision(interaction, action, channelId) {
+    const channel = await client.channels.fetch(channelId).catch(() => null);
+    if (!channel || channel.type !== ChannelType.GuildText || !parseTicketTopic(channel.topic || '')) {
+        return replyToInteraction(interaction, {
+            content: 'Das Ticket wurde nicht gefunden oder ist schon geloescht.',
+            ephemeral: interaction.inGuild()
+        });
+    }
+
+    if (interaction.inGuild()) {
+        const member = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
+        if (!memberCanManageTickets(member)) {
+            return replyToInteraction(interaction, {
+                content: 'Nur Owner oder Moderatoren koennen diese Erinnerung entscheiden.',
+                ephemeral: true
+            });
+        }
+    } else if (TICKET_NOTIFY_USER_ID && interaction.user.id !== TICKET_NOTIFY_USER_ID) {
+        return replyToInteraction(interaction, {
+            content: 'Diese Erinnerung ist nicht fuer deinen Account.',
+            ephemeral: interaction.inGuild()
+        });
+    }
+
+    if (action === 'delete') {
+        await replyToInteraction(interaction, {
+            content: `Ticket <#${channel.id}> wird geloescht.`,
+            ephemeral: interaction.inGuild()
+        });
+        return channel.delete('Inaktives Ticket per Reminder geloescht').catch(error => {
+            console.error('Idle ticket delete failed:', error.message);
+        });
+    }
+
+    await updateTicketMeta(channel, {
+        idleAlertAt: Date.now()
+    });
+
+    return replyToInteraction(interaction, {
+        content: `Ticket <#${channel.id}> bleibt offen.`,
+        ephemeral: interaction.inGuild()
+    });
+}
+
+async function markTicketActivity(message) {
+    if (!message.guild || message.channel?.type !== ChannelType.GuildText) {
+        return;
+    }
+
+    const meta = parseTicketTopic(message.channel.topic || '');
+    if (!meta) {
+        return;
+    }
+
+    await updateTicketMeta(message.channel, {
+        lastActivityAt: Date.now(),
+        idleAlertAt: 0
+    });
 }
 
 function buildWelcomeGuideText(topicKey) {
@@ -3273,6 +3912,16 @@ async function sendCooperationPanel() {
     await cooperationChannel.send({ embeds: [embed], components: [row] });
 }
 
+async function sendCooperationRequestTicketPanel() {
+    const cooperationChannel = await client.channels.fetch(COOPERATION_CHANNEL_ID).catch(() => null);
+    if (!cooperationChannel) {
+        return;
+    }
+
+    await deletePanelMessages(cooperationChannel, COOPERATION_PANEL_TITLE);
+    await upsertPanelMessage(cooperationChannel, COOPERATION_REQUEST_PANEL_TITLE, buildCooperationRequestPanel());
+}
+
 async function sendCreatorApplicationPanel() {
     const creatorChannel = await client.channels.fetch(CREATOR_CHANNEL_ID).catch(() => null);
     if (!creatorChannel) {
@@ -3327,6 +3976,18 @@ async function refreshPanels() {
     }
 
     try {
+        await sendAiExplainerPanel();
+    } catch (error) {
+        console.error('AI explainer channel error:', error.message);
+    }
+
+    try {
+        await sendSupportTicketPanel();
+    } catch (error) {
+        console.error('Support ticket panel error:', error.message);
+    }
+
+    try {
         await sendSellPanel();
     } catch (error) {
         console.error('Sell channel error:', error.message);
@@ -3369,7 +4030,7 @@ async function refreshPanels() {
     }
 
     try {
-        await sendCooperationPanel();
+        await sendCooperationRequestTicketPanel();
     } catch (error) {
         console.error('Cooperation channel error:', error.message);
     }
@@ -4416,6 +5077,9 @@ client.once('ready', async () => {
     await syncTrustedSellerRoles().catch(error => {
         console.error('Trusted seller sync failed on startup:', error.message);
     });
+    await checkAcceptedTicketInactivity().catch(error => {
+        console.error('Ticket inactivity check failed on startup:', error.message);
+    });
 
     cron.schedule('*/5 * * * *', async () => {
         await refreshPanels();
@@ -4424,6 +5088,7 @@ client.once('ready', async () => {
     cron.schedule('0 * * * *', async () => {
         await closeExpiredMockupVotes();
         await closeExpiredOutfitVotes();
+        await checkAcceptedTicketInactivity();
     }, { timezone: TIMEZONE });
 
     cron.schedule('0 4 * * *', async () => {
@@ -4552,6 +5217,42 @@ client.on('interactionCreate', async interaction => {
                     content: `Tokenstand aktualisiert: ${getAiUserRecord(interaction.user.id).balance}`,
                     ephemeral: true
                 });
+            }
+
+            if (interaction.customId === 'open_support_ticket') {
+                return handleOpenTicketButton(interaction, 'support');
+            }
+
+            if (interaction.customId === 'open_cooperation_ticket') {
+                return handleOpenTicketButton(interaction, 'cooperation');
+            }
+
+            if (interaction.customId === 'ticket_accept') {
+                return handleTicketDecision(interaction, 'accepted');
+            }
+
+            if (interaction.customId === 'ticket_decline') {
+                return handleTicketDecision(interaction, 'declined');
+            }
+
+            if (interaction.customId === 'ticket_delete') {
+                return handleTicketDelete(interaction);
+            }
+
+            if (interaction.customId.startsWith('ticket_idle_delete_')) {
+                return handleTicketIdleDecision(
+                    interaction,
+                    'delete',
+                    interaction.customId.replace('ticket_idle_delete_', '')
+                );
+            }
+
+            if (interaction.customId.startsWith('ticket_idle_keep_')) {
+                return handleTicketIdleDecision(
+                    interaction,
+                    'keep',
+                    interaction.customId.replace('ticket_idle_keep_', '')
+                );
             }
 
             if (
@@ -5481,6 +6182,10 @@ client.on('messageCreate', async message => {
     if (message.author.bot) {
         return;
     }
+
+    await markTicketActivity(message).catch(error => {
+        console.error('Ticket activity update failed:', error.message);
+    });
 
     const uploadData = activeUploads.get(message.author.id);
     const isUploadFlowMessage =
