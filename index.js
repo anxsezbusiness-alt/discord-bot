@@ -72,6 +72,11 @@ const VERIFIED_ROLE_ID = process.env.VERIFIED_ROLE_ID || '1492463758864416829';
 const AI_PANEL_CHANNEL_ID = process.env.AI_PANEL_CHANNEL_ID || '1501914878716280833';
 const SERVER_GUIDE_CHANNEL_ID = process.env.SERVER_GUIDE_CHANNEL_ID || '1502274806354280644';
 const AI_EXPLAINER_CHANNEL_ID = process.env.AI_EXPLAINER_CHANNEL_ID || '1502297892336173066';
+const NOTIFICATION_PANEL_CHANNEL_ID = process.env.NOTIFICATION_PANEL_CHANNEL_ID || '1502387252611780668';
+const PRICE_DROPS_CHANNEL_ID = process.env.PRICE_DROPS_CHANNEL_ID || '1502555933346234399';
+const BUNDLES_CHANNEL_ID = process.env.BUNDLES_CHANNEL_ID || '1502556130315075686';
+const VIP_TUTORIAL_CHANNEL_ID = process.env.VIP_TUTORIAL_CHANNEL_ID || '1502556739831070860';
+const VIP_PANEL_MANAGER_CHANNEL_ID = process.env.VIP_PANEL_MANAGER_CHANNEL_ID || '1502554630633029752';
 const SUPPORT_TICKET_PANEL_CHANNEL_ID = process.env.SUPPORT_TICKET_PANEL_CHANNEL_ID || '1492255500434407632';
 const REVIEW_CHANNEL_ID = process.env.REVIEW_CHANNEL_ID || '1502373071678607442';
 const TICKET_CATEGORY_ID = process.env.TICKET_CATEGORY_ID || '1502339213176344796';
@@ -135,6 +140,10 @@ const SUPPORT_TICKET_PANEL_TITLE = '\uD83C\uDF9F\uFE0F SUPPORT TICKETS';
 const COOPERATION_REQUEST_PANEL_TITLE = '\uD83E\uDD1D VELO COLLABORATION PROTOCOL';
 const AI_EXPLAINER_PANEL_TITLE = '\u2728 VELOO&YESTERA AI & TOKEN GUIDE';
 const SELLER_REVIEW_PANEL_TITLE = '\u2B50 VELOO&YESTERA SELLER REVIEWS';
+const VINTED_NOTIFICATION_PANEL_TITLE = '🔔 VELOO&YESTERA VINTED NOTIFICATIONS';
+const VIP_TUTORIAL_PANEL_TITLE = '👑 VELOO&YESTERA VIP TUTORIAL';
+const VIP_PANEL_MANAGER_TITLE = '🧱 VIP CHANGE PANELS';
+const VIP_PRIVATE_PANEL_TITLE = '🧱 DEINE CHANGE PANELS';
 const SERVER_GUIDE_PANEL_TITLE = '🧭 VELOO&YESTERA SERVER GUIDE';
 const VERIFICATION_PANEL_TITLE = '✅ VELOO&YESTERA VERIFICATION';
 const RULES_PANEL_TITLE = '📜 VELOO&YESTERA REGELN';
@@ -180,6 +189,7 @@ const DEFAULT_REACTION_ROLE_OPTIONS = [
 const activeUploads = new Map();
 const alertedVipMessages = new Set();
 const forwardedBrandMessages = new Set();
+const forwardedSpecialMessages = new Set();
 const mainChannelReplyCooldowns = new Map();
 const spamWindows = new Map();
 const newAccountWarnings = new Set();
@@ -188,36 +198,110 @@ let aiTokenStore = loadAiTokenStore();
 let vipStatusStore = loadVipStatusStore();
 
 const BRAND_CHANNEL_CONFIGS = [
-    { label: 'Nike', keywords: ['nike'], channelId: '1500936023688085515' },
-    { label: 'Adidas', keywords: ['adidas'], channelId: '1500936048593735830' },
-    { label: 'Carhartt', keywords: ['carhartt'], channelId: '1500936090792759356' },
-    { label: 'Stussy', keywords: ['stussy'], channelId: '1500936134425968881' },
-    { label: 'Ralph Lauren', keywords: ['ralph lauren', 'ralph-lauren'], channelId: '1500936158853599404' },
-    { label: 'Stone Island', keywords: ['stone island', 'stone-island'], channelId: '1500936182274719984' },
-    { label: 'CP Company', keywords: ['cp company', 'cp-company'], channelId: '1500936223026450602' },
-    { label: "Arc'teryx", keywords: ['arc teryx', 'arcteryx'], channelId: '1500936244815990844' },
-    { label: 'Moncler', keywords: ['moncler'], channelId: '1500936265732718703' },
-    { label: 'The North Face', keywords: ['the north face', 'the-north-face', 'tnf'], channelId: '1500936286830067764' },
-    { label: 'Palm Angels', keywords: ['palm angels', 'palm-angels'], channelId: '1500936303854883008' },
-    { label: 'Trapstar', keywords: ['trapstar'], channelId: '1500936321902837902' },
-    { label: 'Chrome Hearts', keywords: ['chrome hearts', 'chrome-hearts'], channelId: '1500936350252142602' },
-    { label: 'Burberry', keywords: ['burberry'], channelId: '1500936376940630016' },
-    { label: 'Gucci', keywords: ['gucci'], channelId: '1500936401150283898' },
-    { label: 'Prada', keywords: ['prada'], channelId: '1500936434897387642' },
-    { label: 'Louis Vuitton', keywords: ['louis vuitton', 'louis-vuitton'], channelId: '1500936451318354067' },
-    { label: 'Dior', keywords: ['dior'], channelId: '1500936474827297120' },
-    { label: 'Off-White', keywords: ['off-white', 'off white'], channelId: '1500936495891222528' },
-    { label: 'New Balance', keywords: ['new balance', 'new-balance'], channelId: '1500936510634070016' },
-    { label: 'Chanel', keywords: ['chanel'], channelId: '1500936529978327140' },
-    { label: 'Loewe', keywords: ['loewe'], channelId: '1500936553063780462' },
-    { label: 'Fendi', keywords: ['fendi'], channelId: '1500936586588717148' },
-    { label: 'Celine', keywords: ['celine'], channelId: '1500936616209023036' },
-    { label: 'Coach', keywords: ['coach'], channelId: '1500936649356345486' },
-    { label: 'Fear of God', keywords: ['fear of god', 'fear-of-god'], channelId: '1500936674098548806' },
-    { label: 'Miu Miu', keywords: ['miu miu'], channelId: '1500936696089542686' },
-    { label: 'Moncler', keywords: ['moncler'], channelId: '1500936732890235041' },
-    { label: 'Vivienne Westwood', keywords: ['vivienne westwood', 'vivienne-westwood'], channelId: '1500936760044159287' },
-    { label: 'Supreme', keywords: ['supreme'], channelId: '1500936788632539397' }
+    { key: 'nike', label: 'Nike', emoji: '👟', keywords: ['nike'], channelId: '1502544883502813285' },
+    { key: 'adidas', label: 'Adidas', emoji: '🐚', keywords: ['adidas'], channelId: '1502544923222868018' },
+    { key: 'new-balance', label: 'New Balance', emoji: '👟', keywords: ['new balance', 'new-balance'], channelId: '1502545164315660288' },
+    { key: 'asics', label: 'Asics', emoji: '🏃', keywords: ['asics'], channelId: '1502545111085486112' },
+    { key: 'salomon', label: 'Salomon', emoji: '⛰️', keywords: ['salomon'], channelId: '1502545427788992722' },
+    { key: 'dr-martens', label: 'Dr. Martens', emoji: '🥾', keywords: ['dr martens', 'dr-martens', 'doc martens', 'doc-martens'], channelId: '1502545465709953055' },
+    { key: 'ugg', label: 'UGG', emoji: '🧸', keywords: ['ugg'], channelId: '1502545506646102107' },
+    { key: 'converse', label: 'Converse', emoji: '⭐', keywords: ['converse'], channelId: '1502545535121227886' },
+    { key: 'vans', label: 'Vans', emoji: '🏁', keywords: ['vans'], channelId: '1502545579161682051' },
+    { key: 'puma', label: 'Puma', emoji: '🐆', keywords: ['puma'], channelId: '1502545614297104514' },
+    { key: 'reebok', label: 'Reebok', emoji: '🔁', keywords: ['reebok'], channelId: '1502545637042815076' },
+    { key: 'mizuno', label: 'Mizuno', emoji: '🌊', keywords: ['mizuno'], channelId: '1502545661097283695' },
+    { key: 'fila', label: 'Fila', emoji: '🔵', keywords: ['fila'], channelId: '1502545709902336123' },
+    { key: 'carhartt', label: 'Carhartt', emoji: '🧥', keywords: ['carhartt'], channelId: '1502545740268834846' },
+    { key: 'dickies', label: 'Dickies', emoji: '🛠️', keywords: ['dickies'], channelId: '1502545790281711676' },
+    { key: 'levi', label: 'Levi', emoji: '👖', keywords: ['levi', 'levis', "levi's"], channelId: '1502545837840924722' },
+    { key: 'wrangler', label: 'Wrangler', emoji: '🤠', keywords: ['wrangler'], channelId: '1502545873295642694' },
+    { key: 'diesel', label: 'Diesel', emoji: '⛽', keywords: ['diesel'], channelId: '1502545898922836059' },
+    { key: 'g-star', label: 'G-Star', emoji: '⭐', keywords: ['g star', 'g-star', 'gstar'], channelId: '1502545921932787742' },
+    { key: 'evisu', label: 'Evisu', emoji: '🧬', keywords: ['evisu'], channelId: '1502545960134246441' },
+    { key: 'lee', label: 'Lee', emoji: '👖', keywords: ['lee'], channelId: '1502545989930582026' },
+    { key: 'ben-davis', label: 'Ben Davis', emoji: '🧰', keywords: ['ben davis', 'ben-davis'], channelId: '1502546027918524426' },
+    { key: 'caterpillar', label: 'Caterpillar', emoji: '🚜', keywords: ['caterpillar', 'cat'], channelId: '1502546084596289686' },
+    { key: 'timberland', label: 'Timberland', emoji: '🥾', keywords: ['timberland'], channelId: '1502546118381142116' },
+    { key: 'stussy', label: 'Stussy', emoji: '🌊', keywords: ['stussy', 'stüssy'], channelId: '1502546192335376484' },
+    { key: 'supreme', label: 'Supreme', emoji: '🔥', keywords: ['supreme'], channelId: '1502546217303933020' },
+    { key: 'bape', label: 'Bape', emoji: '🦍', keywords: ['bape', 'a bathing ape'], channelId: '1502546259456692255' },
+    { key: 'corteiz', label: 'Corteiz', emoji: '⚡', keywords: ['corteiz', 'crtz'], channelId: '1502546291669078178' },
+    { key: 'trapstar', label: 'Trapstar', emoji: '⭐', keywords: ['trapstar'], channelId: '1502546330835484712' },
+    { key: 'palm-angels', label: 'Palm Angels', emoji: '🪽', keywords: ['palm angels', 'palm-angels'], channelId: '1502546360551870464' },
+    { key: 'off-white', label: 'Off-White', emoji: '🚧', keywords: ['off white', 'off-white'], channelId: '1502546401605849110' },
+    { key: 'fear-of-god', label: 'Fear of God', emoji: '🕊️', keywords: ['fear of god', 'fear-of-god', 'fog'], channelId: '1502546432002097234' },
+    { key: 'represent', label: 'Represent', emoji: '🎯', keywords: ['represent'], channelId: '1502546840107876352' },
+    { key: 'daily-paper', label: 'Daily Paper', emoji: '🌍', keywords: ['daily paper', 'daily-paper'], channelId: '1502546872907337868' },
+    { key: 'palace', label: 'Palace', emoji: '🏰', keywords: ['palace'], channelId: '1502546912161697812' },
+    { key: 'nocta', label: 'Nocta', emoji: '🌙', keywords: ['nocta'], channelId: '1502546938355257434' },
+    { key: 'kith', label: 'Kith', emoji: '🗽', keywords: ['kith'], channelId: '1502546968545595516' },
+    { key: 'awake-ny', label: 'Awake NY', emoji: '🧢', keywords: ['awake ny', 'awake-ny'], channelId: '1502546991861858304' },
+    { key: 'aime-leon-dore', label: 'Aime Leon Dore', emoji: '🍃', keywords: ['aime leon dore', 'aime-leon-dore', 'ald'], channelId: '1502547019862900796' },
+    { key: 'ralph-lauren', label: 'Ralph Lauren', emoji: '🐎', keywords: ['ralph lauren', 'ralph-lauren', 'polo ralph lauren'], channelId: '1502547053400559646' },
+    { key: 'lacoste', label: 'Lacoste', emoji: '🐊', keywords: ['lacoste'], channelId: '1502547084312711218' },
+    { key: 'tommy-hilfiger', label: 'Tommy Hilfiger', emoji: '🇺🇸', keywords: ['tommy hilfiger', 'tommy-hilfiger', 'tommy'], channelId: '1502547114788524094' },
+    { key: 'napapijri', label: 'Napapijri', emoji: '🏔️', keywords: ['napapijri'], channelId: '1502547143985205369' },
+    { key: 'patagonia', label: 'Patagonia', emoji: '⛰️', keywords: ['patagonia'], channelId: '1502547170656649326' },
+    { key: 'the-north-face', label: 'The North Face', emoji: '❄️', keywords: ['the north face', 'the-north-face', 'tnf', 'north face'], channelId: '1502547198150447124' },
+    { key: 'arcteryx', label: "Arc'teryx", emoji: '🦖', keywords: ['arcteryx', 'arc teryx', "arc'teryx"], channelId: '1502547220702957708' },
+    { key: 'stone-island', label: 'Stone Island', emoji: '🧊', keywords: ['stone island', 'stone-island'], channelId: '1502547250696556606' },
+    { key: 'cp-company', label: 'CP Company', emoji: '🕶️', keywords: ['cp company', 'cp-company', 'c.p. company'], channelId: '1502547277623984258' },
+    { key: 'moncler', label: 'Moncler', emoji: '🐥', keywords: ['moncler'], channelId: '1502547306744905870' },
+    { key: 'oakley', label: 'Oakley', emoji: '🕶️', keywords: ['oakley'], channelId: '1502547725567398089' },
+    { key: 'columbia', label: 'Columbia', emoji: '🌲', keywords: ['columbia'], channelId: '1502547750456135800' },
+    { key: 'helly-hansen', label: 'Helly Hansen', emoji: '🌊', keywords: ['helly hansen', 'helly-hansen', 'hh'], channelId: '1502547779224862841' },
+    { key: 'chrome-hearts', label: 'Chrome Hearts', emoji: '💎', keywords: ['chrome hearts', 'chrome-hearts'], channelId: '1502547822770389062' },
+    { key: 'vivienne-westwood', label: 'Vivienne Westwood', emoji: '🪐', keywords: ['vivienne westwood', 'vivienne-westwood'], channelId: '1502547861311586415' },
+    { key: 'ed-hardy', label: 'Ed Hardy', emoji: '❤️‍🔥', keywords: ['ed hardy', 'ed-hardy'], channelId: '1502547912561918012' },
+    { key: 'maison-margiela', label: 'Maison Margiela', emoji: '🪡', keywords: ['maison margiela', 'maison-margiela', 'margiela'], channelId: '1502547945168568461' },
+    { key: 'comme-des-garcons', label: 'Comme des Garcons', emoji: '🖤', keywords: ['comme des garcons', 'comme-des-garcons', 'cdg'], channelId: '1502547975090606191' },
+    { key: 'acne-studios', label: 'Acne Studios', emoji: '🌫️', keywords: ['acne studios', 'acne-studios'], channelId: '1502547997886517318' },
+    { key: 'y-project', label: 'Y/Project', emoji: '〰️', keywords: ['y project', 'y-project', 'y/project'], channelId: '1502548025644552293' },
+    { key: 'our-legacy', label: 'Our Legacy', emoji: '📜', keywords: ['our legacy', 'our-legacy'], channelId: '1502548056275554424' },
+    { key: 'rick-owens', label: 'Rick Owens', emoji: '🦇', keywords: ['rick owens', 'rick-owens'], channelId: '1502548076542296064' },
+    { key: 'gucci', label: 'Gucci', emoji: '💼', keywords: ['gucci'], channelId: '1502548109522374748' },
+    { key: 'prada', label: 'Prada', emoji: '🖤', keywords: ['prada'], channelId: '1502548156104179732' },
+    { key: 'louis-vuitton', label: 'Louis Vuitton', emoji: '🎁', keywords: ['louis vuitton', 'louis-vuitton', 'lv'], channelId: '1502548182792536116' },
+    { key: 'dior', label: 'Dior', emoji: '✨', keywords: ['dior'], channelId: '1502548202258436196' },
+    { key: 'chanel', label: 'Chanel', emoji: '🌹', keywords: ['chanel'], channelId: '1502548229550510090' },
+    { key: 'loewe', label: 'Loewe', emoji: '🪡', keywords: ['loewe'], channelId: '1502548255781949480' },
+    { key: 'fendi', label: 'Fendi', emoji: '👜', keywords: ['fendi'], channelId: '1502548278795960380' },
+    { key: 'celine', label: 'Celine', emoji: '🕶️', keywords: ['celine'], channelId: '1502548308705411072' },
+    { key: 'coach', label: 'Coach', emoji: '👜', keywords: ['coach'], channelId: '1502548329945632808' },
+    { key: 'balenciaga', label: 'Balenciaga', emoji: '⚫', keywords: ['balenciaga'], channelId: '1502548392402882560' },
+    { key: 'versace', label: 'Versace', emoji: '🏛️', keywords: ['versace'], channelId: '1502548415559499816' },
+    { key: 'valentino', label: 'Valentino', emoji: '🌹', keywords: ['valentino'], channelId: '1502548456143585410' },
+    { key: 'ysl', label: 'YSL', emoji: '🖤', keywords: ['ysl', 'saint laurent', 'yves saint laurent'], channelId: '1502548477916352726' },
+    { key: 'amiri', label: 'Amiri', emoji: '💫', keywords: ['amiri'], channelId: '1502548505930240040' },
+    { key: 'gallery-dept', label: 'Gallery Dept', emoji: '🎨', keywords: ['gallery dept', 'gallery-dept', 'gallery department'], channelId: '1502548538423513088' },
+    { key: 'givenchy', label: 'Givenchy', emoji: '⭐', keywords: ['givenchy'], channelId: '1502548559017545832' },
+    { key: 'bottega-veneta', label: 'Bottega Veneta', emoji: '🧺', keywords: ['bottega veneta', 'bottega-veneta'], channelId: '1502548589874905209' },
+    { key: 'burberry', label: 'Burberry', emoji: '🧥', keywords: ['burberry'], channelId: '1502548623890841640' }
+];
+
+const VINTED_CATEGORY_ROLE_CONFIGS = [
+    { key: 'schuhe', label: 'Schuhe', emoji: '👟', roleId: '1502548809648181298', keywords: ['schuhe', 'shoe', 'shoes', 'sneaker', 'sneakers', 'boots', 'boot'] },
+    { key: 't-shirts', label: 'T-Shirts', emoji: '👕', roleId: '1502548997888278619', keywords: ['t-shirt', 't-shirts', 't shirt', 't shirts', 'tee', 'tees'] },
+    { key: 'hoodies', label: 'Hoodies', emoji: '🧥', roleId: '1502549040615915520', keywords: ['hoodie', 'hoodies', 'zip hoodie', 'zip-hoodie'] },
+    { key: 'pullover', label: 'Pullover', emoji: '🧶', roleId: '1502549068981993532', keywords: ['pullover', 'sweater', 'sweatshirt', 'crewneck'] },
+    { key: 'jacken', label: 'Jacken', emoji: '🧥', roleId: '1502549100220907592', keywords: ['jacke', 'jacken', 'jacket', 'jackets', 'puffer', 'coat', 'mantel'] },
+    { key: 'hosen', label: 'Hosen', emoji: '👖', roleId: '1502549126242631840', keywords: ['hose', 'hosen', 'pants', 'jeans', 'cargo', 'cargos'] },
+    { key: 'shorts', label: 'Shorts', emoji: '🩳', roleId: '1502549159859720192', keywords: ['shorts', 'short', 'kurze hose'] },
+    { key: 'tracksuits', label: 'Tracksuits', emoji: '🏃', roleId: '1502549189169643620', keywords: ['tracksuit', 'tracksuits', 'trainingsanzug', 'jogger set', 'set'] },
+    { key: 'hemden', label: 'Hemden', emoji: '👔', roleId: '1502549216302596106', keywords: ['hemd', 'hemden', 'button up', 'button-up', 'dress shirt'] },
+    { key: 'polos', label: 'Polos', emoji: '🏌️', roleId: '1502549240075780096', keywords: ['polo', 'polos'] },
+    { key: 'knitwear', label: 'Knitwear', emoji: '🧶', roleId: '1502549241015566386', keywords: ['knitwear', 'knit', 'strick', 'strickpullover', 'cardigan'] },
+    { key: 'westen', label: 'Westen', emoji: '🦺', roleId: '1502549292374823053', keywords: ['weste', 'westen', 'vest', 'vests', 'gilet'] },
+    { key: 'taschen', label: 'Taschen', emoji: '👜', roleId: '1502549335315841145', keywords: ['tasche', 'taschen', 'bag', 'bags', 'rucksack', 'backpack'] },
+    { key: 'caps', label: 'Caps', emoji: '🧢', roleId: '1502549369751339018', keywords: ['cap', 'caps', 'mütze', 'muetze', 'beanie', 'hat'] },
+    { key: 'schmuck', label: 'Schmuck', emoji: '💍', roleId: '1502549397269909564', keywords: ['schmuck', 'jewelry', 'jewellery', 'chain', 'ring', 'necklace', 'kette'] },
+    { key: 'accessoires', label: 'Accessoires', emoji: '🎒', roleId: '1502549425850028062', keywords: ['accessoire', 'accessoires', 'accessory', 'accessories', 'belt', 'gürtel', 'guertel', 'wallet'] },
+    { key: 'steals', label: 'Steals', emoji: '💸', roleId: '1502549449036140656', keywords: ['steal', 'steals', 'schnapper', 'deal', 'bargain'] },
+    { key: 'price-drops', label: 'Price Drops', emoji: '📉', roleId: '1502549477087645707', keywords: ['price drop', 'price-drops', 'pricedrop', 'preis drop', 'preisdrops', 'reduziert', 'sale'] },
+    { key: 'bundles', label: 'Bundles', emoji: '📦', roleId: '1502549498688176220', keywords: ['bundle', 'bundles', 'paket', 'set', 'mehrere'] },
+    { key: 'suche', label: 'Suche', emoji: '🔎', roleId: '1502549531479380018', keywords: ['suche', 'gesucht', 'search', 'looking for', 'lf', 'wtb'] },
+    { key: 'legit-check', label: 'Legit Check', emoji: '✅', roleId: '1502549566631837788', keywords: ['legit check', 'legit-check', 'lc', 'fake check', 'authentic', 'authenticity'] },
+    { key: 'sold', label: 'Sold', emoji: '🏷️', roleId: '1502549596017266860', keywords: ['sold', 'verkauft'] }
 ];
 
 const REACTION_ROLE_OPTIONS = [
@@ -291,41 +375,7 @@ const ITEM_MIRROR_CHANNEL_IDS = [...new Set([
     ...BRAND_CHANNEL_CONFIGS.map(config => config.channelId)
 ])];
 
-const BRAND_KEYWORDS = [
-    'nike',
-    'adidas',
-    'stussy',
-    'supreme',
-    'carhartt',
-    'ralph lauren',
-    'stone island',
-    'cp company',
-    'arc teryx',
-    'arcteryx',
-    'moncler',
-    'the north face',
-    'tnf',
-    'palm angels',
-    'trapstar',
-    'chrome hearts',
-    'burberry',
-    'gucci',
-    'prada',
-    'louis vuitton',
-    'dior',
-    'off-white',
-    'off white',
-    'yeezy',
-    'new balance',
-    'chanel',
-    'loewe',
-    'fendi',
-    'celine',
-    'coach',
-    'fear of god',
-    'miu miu',
-    'vivienne westwood'
-];
+const BRAND_KEYWORDS = [...new Set(BRAND_CHANNEL_CONFIGS.flatMap(config => config.keywords))];
 
 const ACTIVITY_POINTS = {
     join_server: 1,
@@ -375,6 +425,7 @@ function createEmptyMockupStore() {
         announcedCommunityCookedMonths: [],
         communityCookedHistory: {},
         sellerReviews: {},
+        notificationPreferences: {},
         announcedAnalyticsWeeks: []
     };
 }
@@ -415,6 +466,10 @@ function loadMockupStore() {
                 parsed.sellerReviews && typeof parsed.sellerReviews === 'object'
                     ? parsed.sellerReviews
                     : {},
+            notificationPreferences:
+                parsed.notificationPreferences && typeof parsed.notificationPreferences === 'object'
+                    ? parsed.notificationPreferences
+                    : {},
             announcedAnalyticsWeeks: Array.isArray(parsed.announcedAnalyticsWeeks)
                 ? parsed.announcedAnalyticsWeeks
                 : []
@@ -443,6 +498,23 @@ function normalizeSearchText(text) {
         .replace(/['\u2019]/g, '')
         .replace(/\s+/g, ' ')
         .trim();
+}
+
+function escapeRegExp(value) {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function searchTextIncludesKeyword(searchableText, keyword) {
+    const normalizedKeyword = normalizeSearchText(keyword);
+    if (!normalizedKeyword) {
+        return false;
+    }
+
+    if (/^[a-z0-9]{1,3}$/.test(normalizedKeyword)) {
+        return new RegExp(`(^|[^a-z0-9])${escapeRegExp(normalizedKeyword)}([^a-z0-9]|$)`).test(searchableText);
+    }
+
+    return searchableText.includes(normalizedKeyword);
 }
 
 function getMonthKey(date = new Date()) {
@@ -726,8 +798,266 @@ function getMatchingBrandConfigs(message) {
     }
 
     return BRAND_CHANNEL_CONFIGS.filter(config =>
-        config.keywords.some(keyword => searchableText.includes(normalizeSearchText(keyword)))
+        config.keywords.some(keyword => searchTextIncludesKeyword(searchableText, keyword))
     );
+}
+
+function getMatchingCategoryConfigs(message) {
+    const searchableText = getMessageBrandSearchText(message);
+    if (!searchableText) {
+        return [];
+    }
+
+    return VINTED_CATEGORY_ROLE_CONFIGS.filter(config =>
+        config.keywords.some(keyword => searchTextIncludesKeyword(searchableText, keyword))
+    );
+}
+
+function chunkArray(items, size) {
+    const chunks = [];
+    for (let index = 0; index < items.length; index += size) {
+        chunks.push(items.slice(index, index + size));
+    }
+    return chunks;
+}
+
+function getNotificationPreference(userId) {
+    if (!mockupStore.notificationPreferences || typeof mockupStore.notificationPreferences !== 'object') {
+        mockupStore.notificationPreferences = {};
+    }
+
+    const preference = mockupStore.notificationPreferences[userId] || {};
+    const brandKeys = Array.isArray(preference.brandKeys)
+        ? preference.brandKeys.filter(key => BRAND_CHANNEL_CONFIGS.some(config => config.key === key))
+        : [];
+
+    mockupStore.notificationPreferences[userId] = {
+        ...preference,
+        brandKeys
+    };
+
+    return mockupStore.notificationPreferences[userId];
+}
+
+function saveNotificationPreference(userId, patch) {
+    const previousPreference = getNotificationPreference(userId);
+    mockupStore.notificationPreferences[userId] = {
+        ...previousPreference,
+        ...patch,
+        updatedAt: new Date().toISOString()
+    };
+    saveMockupStore();
+    return mockupStore.notificationPreferences[userId];
+}
+
+function getCategoryKeysForMember(member) {
+    if (!member?.roles?.cache) {
+        return [];
+    }
+
+    return VINTED_CATEGORY_ROLE_CONFIGS
+        .filter(config => member.roles.cache.has(config.roleId))
+        .map(config => config.key);
+}
+
+function buildBrandNotificationSelectRows(userId) {
+    const preference = getNotificationPreference(userId);
+    const selectedBrandKeys = new Set(preference.brandKeys || []);
+
+    return chunkArray(BRAND_CHANNEL_CONFIGS, 25).map((brandGroup, groupIndex) =>
+        new ActionRowBuilder().addComponents(
+            new StringSelectMenuBuilder()
+                .setCustomId(`vinted_notify_brand_${groupIndex}`)
+                .setPlaceholder(`Marken ${groupIndex + 1} auswaehlen`)
+                .setMinValues(0)
+                .setMaxValues(brandGroup.length)
+                .addOptions(
+                    brandGroup.map(config => ({
+                        label: config.label,
+                        value: config.key,
+                        description: `Benachrichtigung fuer ${config.label}`,
+                        emoji: config.emoji,
+                        default: selectedBrandKeys.has(config.key)
+                    }))
+                )
+        )
+    );
+}
+
+function buildCategoryNotificationRow(member) {
+    const selectedCategoryKeys = new Set(getCategoryKeysForMember(member));
+
+    return new ActionRowBuilder().addComponents(
+        new StringSelectMenuBuilder()
+            .setCustomId('vinted_notify_categories')
+            .setPlaceholder('Kategorien auswaehlen')
+            .setMinValues(0)
+            .setMaxValues(VINTED_CATEGORY_ROLE_CONFIGS.length)
+            .addOptions(
+                VINTED_CATEGORY_ROLE_CONFIGS.map(config => ({
+                    label: config.label,
+                    value: config.key,
+                    description: `Ping fuer ${config.label}`,
+                    emoji: config.emoji,
+                    default: selectedCategoryKeys.has(config.key)
+                }))
+            )
+    );
+}
+
+async function showNotificationSettings(interaction) {
+    if (!interaction.inGuild()) {
+        return replyToInteraction(interaction, {
+            content: 'Diese Benachrichtigungen kannst du nur im Server einstellen.',
+            ephemeral: true
+        });
+    }
+
+    const member = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
+    if (!member) {
+        return replyToInteraction(interaction, {
+            content: 'Dein Mitgliedsprofil konnte nicht geladen werden.',
+            ephemeral: true
+        });
+    }
+
+    const preference = getNotificationPreference(interaction.user.id);
+    const brandCount = preference.brandKeys?.length || 0;
+    const categoryCount = getCategoryKeysForMember(member).length;
+    const embed = buildPanelEmbed({
+        title: '🔔 Deine Vinted Benachrichtigungen',
+        description:
+            'Waehle zuerst Marken aus, danach Kategorien. Du wirst dann nur gepingt, wenn ein neues Piece zu deinen Marken und zu deinen Kategorien passt.',
+        color: '#d9c39a',
+        fields: [
+            {
+                name: 'Aktuell',
+                value: `${brandCount} Marken gespeichert\n${categoryCount} Kategorien aktiv`,
+                inline: false
+            },
+            {
+                name: 'Hinweis',
+                value: 'Wenn du keine Kategorie waehlst, bekommst du alle neuen Pieces deiner gespeicherten Marken. Gross- und Kleinschreibung wird beim Erkennen ignoriert.',
+                inline: false
+            }
+        ],
+        footerText: 'VELOO&YESTERA // VINTED NOTIFICATIONS'
+    });
+
+    return replyToInteraction(interaction, {
+        embeds: [embed],
+        components: [
+            ...buildBrandNotificationSelectRows(interaction.user.id),
+            buildCategoryNotificationRow(member)
+        ],
+        ephemeral: true
+    });
+}
+
+async function handleBrandNotificationSelect(interaction) {
+    if (!interaction.inGuild()) {
+        return replyToInteraction(interaction, {
+            content: 'Diese Benachrichtigungen kannst du nur im Server einstellen.',
+            ephemeral: true
+        });
+    }
+
+    const groupIndex = Number(interaction.customId.replace('vinted_notify_brand_', ''));
+    const brandGroups = chunkArray(BRAND_CHANNEL_CONFIGS, 25);
+    const selectedGroup = brandGroups[groupIndex] || [];
+    const selectedValues = new Set(interaction.values);
+    const previousPreference = getNotificationPreference(interaction.user.id);
+    const untouchedBrandKeys = (previousPreference.brandKeys || []).filter(key =>
+        !selectedGroup.some(config => config.key === key)
+    );
+    const nextBrandKeys = [...untouchedBrandKeys, ...selectedGroup.filter(config => selectedValues.has(config.key)).map(config => config.key)];
+    const preference = saveNotificationPreference(interaction.user.id, {
+        brandKeys: [...new Set(nextBrandKeys)]
+    });
+
+    return replyToInteraction(interaction, {
+        content: `Marken gespeichert. Aktuell aktiv: ${preference.brandKeys.length}.`,
+        ephemeral: true
+    });
+}
+
+async function handleCategoryNotificationSelect(interaction) {
+    if (!interaction.inGuild()) {
+        return replyToInteraction(interaction, {
+            content: 'Diese Rollen kannst du nur im Server auswaehlen.',
+            ephemeral: true
+        });
+    }
+
+    const member = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
+    if (!member) {
+        return replyToInteraction(interaction, {
+            content: 'Dein Mitgliedsprofil konnte nicht geladen werden.',
+            ephemeral: true
+        });
+    }
+
+    const selectedValues = new Set(interaction.values);
+    const roleIdsToAdd = VINTED_CATEGORY_ROLE_CONFIGS
+        .filter(config => selectedValues.has(config.key) && !member.roles.cache.has(config.roleId))
+        .map(config => config.roleId);
+    const roleIdsToRemove = VINTED_CATEGORY_ROLE_CONFIGS
+        .filter(config => !selectedValues.has(config.key) && member.roles.cache.has(config.roleId))
+        .map(config => config.roleId);
+
+    if (roleIdsToAdd.length) {
+        await member.roles.add(roleIdsToAdd).catch(() => {});
+    }
+
+    if (roleIdsToRemove.length) {
+        await member.roles.remove(roleIdsToRemove).catch(() => {});
+    }
+
+    const selectedLabels = VINTED_CATEGORY_ROLE_CONFIGS
+        .filter(config => selectedValues.has(config.key))
+        .map(config => `${config.emoji} ${config.label}`);
+
+    return replyToInteraction(interaction, {
+        content: selectedLabels.length
+            ? `Kategorien aktualisiert: ${selectedLabels.join(', ')}`
+            : 'Kategorie-Pings wurden entfernt.',
+        ephemeral: true
+    });
+}
+
+async function buildBrandNotificationContent(guild, brandConfig, message) {
+    const matchingCategories = getMatchingCategoryConfigs(message);
+    const matchingCategoryKeys = matchingCategories.map(config => config.key);
+    const mentions = [];
+    const preferences = mockupStore.notificationPreferences || {};
+
+    for (const [userId, preference] of Object.entries(preferences)) {
+        if (!Array.isArray(preference.brandKeys) || !preference.brandKeys.includes(brandConfig.key)) {
+            continue;
+        }
+
+        const member = await guild.members.fetch(userId).catch(() => null);
+        if (!member) {
+            continue;
+        }
+
+        const memberCategoryKeys = getCategoryKeysForMember(member);
+        const categoryMatches =
+            !matchingCategoryKeys.length ||
+            !memberCategoryKeys.length ||
+            matchingCategoryKeys.some(key => memberCategoryKeys.includes(key));
+
+        if (categoryMatches) {
+            mentions.push(`<@${userId}>`);
+        }
+    }
+
+    const categoryText = matchingCategories.length
+        ? `\nKategorien: ${matchingCategories.map(config => `${config.emoji} ${config.label}`).join(', ')}`
+        : '';
+    const pingLine = mentions.length ? `${mentions.slice(0, 40).join(' ')}\n` : '';
+
+    return `${pingLine}${brandConfig.emoji} Neues ${brandConfig.label}-Piece wurde in latest-goods gepostet.${categoryText}`;
 }
 
 function cloneMessageEmbedsWithResolvedImages(message) {
@@ -822,7 +1152,6 @@ async function forwardLatestGoodsToBrandChannels(message) {
         return;
     }
 
-    const vipMention = await resolveVipMention(message.guild);
     const payload = buildBrandForwardPayload(message);
 
     for (const brandConfig of matchingBrands) {
@@ -832,15 +1161,63 @@ async function forwardLatestGoodsToBrandChannels(message) {
         }
 
         await brandChannel.send({
-            content: `${vipMention} Neues ${brandConfig.label}-Piece wurde in latest-goods gepostet.`,
+            content: await buildBrandNotificationContent(message.guild, brandConfig, message),
             embeds: payload.embeds,
-            components: payload.components
+            components: payload.components,
+            allowedMentions: { parse: ['users'] }
         }).catch(error => {
             console.error(`Brand forward failed for ${brandConfig.label}:`, error.message);
         });
     }
 
     forwardedBrandMessages.add(message.id);
+}
+
+async function forwardSpecialListingChannels(message) {
+    if (message.channelId !== LATEST_GOODS_CHANNEL_ID || !message.guild) {
+        return;
+    }
+
+    const matchingCategories = getMatchingCategoryConfigs(message);
+    if (!matchingCategories.length) {
+        return;
+    }
+
+    const payload = buildBrandForwardPayload(message);
+    const specialRoutes = [
+        {
+            key: 'price-drops',
+            channelId: PRICE_DROPS_CHANNEL_ID,
+            content: '📉 Price Drop erkannt. Neues reduziertes Piece aus latest-goods.'
+        },
+        {
+            key: 'bundles',
+            channelId: BUNDLES_CHANNEL_ID,
+            content: '📦 Bundle erkannt. Neues Paket aus latest-goods.'
+        }
+    ];
+
+    for (const route of specialRoutes) {
+        const hasRouteCategory = matchingCategories.some(config => config.key === route.key);
+        const forwardKey = `${message.id}:${route.key}`;
+        if (!hasRouteCategory || forwardedSpecialMessages.has(forwardKey)) {
+            continue;
+        }
+
+        const channel = await client.channels.fetch(route.channelId).catch(() => null);
+        if (!channel) {
+            continue;
+        }
+
+        await channel.send({
+            content: route.content,
+            embeds: payload.embeds,
+            components: payload.components
+        }).catch(error => {
+            console.error(`Special listing forward failed for ${route.key}:`, error.message);
+        });
+        forwardedSpecialMessages.add(forwardKey);
+    }
 }
 
 function getImageAttachments(message) {
@@ -918,8 +1295,8 @@ function getVipPieceData(message) {
         .map(field => `${field.name} ${field.value}`)
         .join(' ');
 
-    const combinedText = `${title} ${description} ${fieldText}`.toLowerCase();
-    const brand = BRAND_KEYWORDS.find(keyword => combinedText.includes(keyword));
+    const combinedText = normalizeSearchText(`${title} ${description} ${fieldText}`);
+    const brand = BRAND_KEYWORDS.find(keyword => searchTextIncludesKeyword(combinedText, keyword));
     const prices = extractPrices(fieldText);
     const currentPrice = prices.length ? Math.min(...prices) : null;
 
@@ -1270,7 +1647,9 @@ function buildServerGuidePanel() {
             {
                 name: '👑 5. VIP',
                 value:
-                    'VIP gibt dir mehr Sichtbarkeit und hebt deine Posts staerker hervor. Wenn dein Abo endet oder gekuendigt wird, entfernt das System die VIP-Rolle automatisch.',
+                    `VIP gibt dir mehr Sichtbarkeit, staerkere Listing-Hervorhebung und Zugriff auf ${getChannelMention(VIP_TUTORIAL_CHANNEL_ID, 'VIP Tutorial')}. ` +
+                    `Ueber ${getChannelMention(VIP_PANEL_MANAGER_CHANNEL_ID, 'VIP Change Panels')} kannst du als VIP deine eigenen latest-goods Panels privat bearbeiten. ` +
+                    'Wenn dein Abo endet oder gekuendigt wird, entfernt das System die VIP-Rolle automatisch.',
                 inline: false
             },
             {
@@ -1342,6 +1721,499 @@ async function sendServerGuidePanel() {
     }
 
     await upsertPanelMessage(guideChannel, SERVER_GUIDE_PANEL_TITLE, buildServerGuidePanel());
+}
+
+function buildVintedNotificationPanel() {
+    const embed = buildPanelEmbed({
+        title: VINTED_NOTIFICATION_PANEL_TITLE,
+        description:
+            'Stelle ein, fuer welche Marken und Pieces du gepingt werden willst. Die Marken-Posts bleiben in ihren Announcement-Channels, aber du bekommst nur die Hinweise, die zu dir passen.',
+        color: '#d9c39a',
+        fields: [
+            {
+                name: '1. Marken waehlen',
+                value: 'Nike, Adidas, Stone Island, Gucci und alle weiteren Marken kannst du einzeln aktivieren.',
+                inline: false
+            },
+            {
+                name: '2. Kategorien waehlen',
+                value: 'Danach waehle Schuhe, Hoodies, Jacken, Taschen, Price Drops, Bundles, Legit Checks und mehr.',
+                inline: false
+            },
+            {
+                name: '3. Smart gepingt werden',
+                value: 'Der Bot achtet beim Erkennen nicht auf Gross- und Kleinschreibung. Wenn ein Post zu Marke und Kategorie passt, bekommst du den Ping.',
+                inline: false
+            }
+        ],
+        footerText: 'VELOO&YESTERA // VINTED NOTIFICATIONS'
+    });
+
+    const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+            .setCustomId('open_vinted_notifications')
+            .setLabel('🔔 Benachrichtigungen anpassen')
+            .setStyle(ButtonStyle.Primary)
+    );
+
+    return { embeds: [embed], components: [row] };
+}
+
+async function sendVintedNotificationPanel() {
+    const channel = await client.channels.fetch(NOTIFICATION_PANEL_CHANNEL_ID).catch(() => null);
+    if (!channel) {
+        return;
+    }
+
+    await upsertPanelMessage(channel, VINTED_NOTIFICATION_PANEL_TITLE, buildVintedNotificationPanel());
+}
+
+function buildVipTutorialPanel() {
+    const embed = buildPanelEmbed({
+        title: VIP_TUTORIAL_PANEL_TITLE,
+        description:
+            'VIP ist dein Bereich fuer mehr Sichtbarkeit, bessere Kontrolle ueber deine Listings und schnelleren Support beim Verkaufen.',
+        color: '#f1c40f',
+        fields: [
+            {
+                name: '👑 Was VIP bringt',
+                value:
+                    'VIP-Listings werden staerker hervorgehoben. Deine Pieces fallen im Feed schneller auf und werden in den passenden Marken- und Kategorie-Bereichen besser sichtbar.',
+                inline: false
+            },
+            {
+                name: '🧱 Eigene Panels bearbeiten',
+                value:
+                    `Im Channel ${getChannelMention(VIP_PANEL_MANAGER_CHANNEL_ID, 'VIP Panel Manager')} kannst du deinen privaten Bereich oeffnen und eigene latest-goods Listings aktualisieren.`,
+                inline: false
+            },
+            {
+                name: '📉 Price Drops & 📦 Bundles',
+                value:
+                    `${getChannelMention(PRICE_DROPS_CHANNEL_ID, 'Price Drops')} zeigt reduzierte Pieces. ${getChannelMention(BUNDLES_CHANNEL_ID, 'Bundles')} zeigt Pakete und Sets.`,
+                inline: false
+            },
+            {
+                name: '🤖 AI Tokens',
+                value:
+                    `AI Tokens sind Guthaben fuer Fragen rund um Vinted, Marketing, Taktiken und Tutorials. Kaufen und verwalten kannst du sie ueber ${AI_BUY_TOKENS_URL}`,
+                inline: false
+            },
+            {
+                name: '🛟 Fragen',
+                value:
+                    `Wenn etwas nicht klappt, oeffne ein Ticket in ${getChannelMention(SUPPORT_TICKET_PANEL_CHANNEL_ID, 'Support')}.`,
+                inline: false
+            }
+        ],
+        footerText: 'VELOO&YESTERA // VIP TUTORIAL'
+    });
+
+    const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+            .setLabel('VIP Website')
+            .setStyle(ButtonStyle.Link)
+            .setURL(`${WEBSITE_URL}/vip.html`),
+        new ButtonBuilder()
+            .setLabel('AI Tokens')
+            .setStyle(ButtonStyle.Link)
+            .setURL(AI_BUY_TOKENS_URL),
+        new ButtonBuilder()
+            .setLabel('Support')
+            .setStyle(ButtonStyle.Link)
+            .setURL(`https://discord.com/channels/${BOT_GUILD_ID}/${SUPPORT_TICKET_PANEL_CHANNEL_ID}`)
+    );
+
+    return { embeds: [embed], components: [row] };
+}
+
+async function sendVipTutorialPanel() {
+    const channel = await client.channels.fetch(VIP_TUTORIAL_CHANNEL_ID).catch(() => null);
+    if (!channel) {
+        return;
+    }
+
+    await upsertPanelMessage(channel, VIP_TUTORIAL_PANEL_TITLE, buildVipTutorialPanel());
+}
+
+function buildVipPanelManagerPanel() {
+    const embed = buildPanelEmbed({
+        title: VIP_PANEL_MANAGER_TITLE,
+        description:
+            'VIP Member koennen hier einen privaten Listing-Bereich oeffnen. Dort siehst du deine latest-goods Panels und kannst Titel, Marke, Preis, Groesse oder Link nachtraeglich anpassen.',
+        color: '#d9c39a',
+        fields: [
+            {
+                name: 'Privat',
+                value: 'Der Channel ist nur fuer dich, Owner, Moderation und den Bot sichtbar.',
+                inline: false
+            },
+            {
+                name: 'Bearbeiten',
+                value: 'Waehle dein Piece aus, passe die Daten an und der Bot aktualisiert die gefundenen Kopien.',
+                inline: false
+            }
+        ],
+        footerText: 'VELOO&YESTERA // VIP CHANGE PANELS'
+    });
+
+    const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+            .setCustomId('open_vip_change_panels')
+            .setLabel('🧱 Privaten Bereich oeffnen')
+            .setStyle(ButtonStyle.Primary)
+    );
+
+    return { embeds: [embed], components: [row] };
+}
+
+async function sendVipPanelManagerPanel() {
+    const channel = await client.channels.fetch(VIP_PANEL_MANAGER_CHANNEL_ID).catch(() => null);
+    if (!channel) {
+        return;
+    }
+
+    await upsertPanelMessage(channel, VIP_PANEL_MANAGER_TITLE, buildVipPanelManagerPanel());
+}
+
+function getListedItemStatus(listedItem) {
+    if (listedItem?.soldAt) {
+        return 'sold';
+    }
+
+    if (listedItem?.reservedAt) {
+        return 'reserved';
+    }
+
+    return 'active';
+}
+
+function buildStoredListingEmbed(listedItem) {
+    const status = getListedItemStatus(listedItem);
+    const prefixByStatus = {
+        active: '',
+        reserved: 'RESERVIERT | ',
+        sold: 'VERKAUFT | '
+    };
+    const descriptionByStatus = {
+        active: listedItem.isVipSeller ? 'Prioritaets-Listing aus dem VIP-Bereich.' : '',
+        reserved: 'Dieses Piece ist gerade reserviert.',
+        sold: 'Dieses Piece wurde verkauft.'
+    };
+
+    const embed = new EmbedBuilder()
+        .setTitle(`${prefixByStatus[status]}${listedItem.isVipSeller ? 'VIP ' : ''}${listedItem.brand || ''} ${listedItem.title || 'Piece'}`.trim())
+        .addFields(
+            { name: 'Preis', value: listedItem.price || 'Unbekannt', inline: true },
+            { name: 'Groesse', value: listedItem.size || 'Unbekannt', inline: true },
+            { name: 'Verkaeufer', value: `<@${listedItem.sellerId}>`, inline: true }
+        )
+        .setColor(status === 'sold' ? '#e74c3c' : status === 'reserved' ? '#d6a24c' : listedItem.isVipSeller ? '#f1c40f' : '#ffffff')
+        .setFooter({ text: `Item-ID: ${listedItem.itemId}${status === 'reserved' ? ' | RESERVIERT' : status === 'sold' ? ' | VERKAUFT' : ''}` });
+
+    if (descriptionByStatus[status]) {
+        embed.setDescription(descriptionByStatus[status]);
+    }
+
+    if (listedItem.previewImageUrl) {
+        embed.setImage(listedItem.previewImageUrl);
+    }
+
+    if (listedItem.isVipSeller) {
+        embed.addFields(buildVipHighlightField());
+    }
+
+    return embed;
+}
+
+function buildListingContentForStatus(status, listedItem) {
+    if (status === 'reserved') {
+        return '## RESERVIERT\nDieses Piece ist gerade reserviert.';
+    }
+
+    if (status === 'sold') {
+        return '## VERKAUFT\nDieses Piece ist verkauft.';
+    }
+
+    return listedItem.isVipSeller ? 'VIP-LISTING • extra hervorgehoben' : undefined;
+}
+
+function getUserListedItems(userId) {
+    return Object.values(mockupStore.listedItems || {})
+        .filter(item => item?.sellerId === userId)
+        .sort((left, right) => new Date(right.createdAt || 0).getTime() - new Date(left.createdAt || 0).getTime());
+}
+
+function buildVipPrivatePanelPayload(userId) {
+    const items = getUserListedItems(userId);
+    const visibleItems = items.slice(0, 10);
+    const lines = visibleItems.length
+        ? visibleItems.map((item, index) =>
+            `${index + 1}. **${item.brand || 'Marke'} ${item.title || 'Piece'}** - ${item.price || 'Preis offen'} - ${getListedItemStatus(item).toUpperCase()}`
+        ).join('\n')
+        : 'Du hast noch keine gespeicherten latest-goods Listings.';
+
+    const embed = buildPanelEmbed({
+        title: VIP_PRIVATE_PANEL_TITLE,
+        description:
+            'Hier kannst du deine eigenen Panels aus latest-goods bearbeiten. Waehle ein Piece aus und aktualisiere die wichtigsten Daten.',
+        color: '#d9c39a',
+        fields: [
+            {
+                name: 'Deine letzten Listings',
+                value: lines,
+                inline: false
+            }
+        ],
+        footerText: 'VELOO&YESTERA // PRIVATE VIP PANEL'
+    });
+
+    const components = [];
+    if (items.length) {
+        components.push(
+            new ActionRowBuilder().addComponents(
+                new StringSelectMenuBuilder()
+                    .setCustomId('vip_edit_item_select')
+                    .setPlaceholder('Listing bearbeiten')
+                    .setMinValues(1)
+                    .setMaxValues(1)
+                    .addOptions(
+                        items.slice(0, 25).map(item => ({
+                            label: `${item.brand || 'Marke'} ${item.title || 'Piece'}`.slice(0, 100),
+                            description: `${item.price || 'Preis offen'} | ${getListedItemStatus(item)}`.slice(0, 100),
+                            value: item.itemId
+                        }))
+                    )
+            )
+        );
+    }
+
+    components.push(
+        new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId('refresh_vip_change_panels')
+                .setLabel('🔄 Aktualisieren')
+                .setStyle(ButtonStyle.Secondary)
+        )
+    );
+
+    return { embeds: [embed], components };
+}
+
+async function upsertVipPrivatePanel(channel, userId) {
+    return upsertPanelMessage(channel, VIP_PRIVATE_PANEL_TITLE, buildVipPrivatePanelPayload(userId));
+}
+
+function buildVipChannelPermissionOverwrites(guild, userId) {
+    const overwrites = [
+        {
+            id: guild.id,
+            deny: [PermissionsBitField.Flags.ViewChannel]
+        },
+        {
+            id: userId,
+            allow: [
+                PermissionsBitField.Flags.ViewChannel,
+                PermissionsBitField.Flags.SendMessages,
+                PermissionsBitField.Flags.ReadMessageHistory
+            ]
+        },
+        {
+            id: client.user.id,
+            allow: [
+                PermissionsBitField.Flags.ViewChannel,
+                PermissionsBitField.Flags.SendMessages,
+                PermissionsBitField.Flags.ManageChannels,
+                PermissionsBitField.Flags.ReadMessageHistory
+            ]
+        }
+    ];
+
+    const staffRoles = [
+        findRoleByIdOrName(guild, OWNER_ROLE_ID, OWNER_ROLE_NAME),
+        findRoleByIdOrName(guild, MODERATOR_ROLE_ID, EFFECTIVE_MODERATOR_ROLE_NAME)
+    ].filter(Boolean);
+
+    for (const role of staffRoles) {
+        overwrites.push({
+            id: role.id,
+            allow: [
+                PermissionsBitField.Flags.ViewChannel,
+                PermissionsBitField.Flags.SendMessages,
+                PermissionsBitField.Flags.ReadMessageHistory
+            ]
+        });
+    }
+
+    return overwrites;
+}
+
+async function openOrRefreshVipChangeChannel(interaction) {
+    if (!interaction.inGuild()) {
+        return replyToInteraction(interaction, {
+            content: 'Das funktioniert nur im Server.',
+            ephemeral: true
+        });
+    }
+
+    const member = await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
+    if (!member || !memberHasVipRole(member)) {
+        return replyToInteraction(interaction, {
+            content: 'Dieser Bereich ist nur fuer VIP Member.',
+            ephemeral: true
+        });
+    }
+
+    const topicNeedle = `VELOO_VIP_PANEL_MANAGER user=${interaction.user.id}`;
+    let channel = interaction.guild.channels.cache.find(existingChannel =>
+        existingChannel.type === ChannelType.GuildText && existingChannel.topic?.includes(topicNeedle)
+    );
+
+    if (!channel) {
+        const sourceChannel = await interaction.guild.channels.fetch(VIP_PANEL_MANAGER_CHANNEL_ID).catch(() => null);
+        channel = await interaction.guild.channels.create({
+            name: '╰・🧱・change-panels',
+            type: ChannelType.GuildText,
+            topic: topicNeedle,
+            parent: sourceChannel?.parentId || undefined,
+            permissionOverwrites: buildVipChannelPermissionOverwrites(interaction.guild, interaction.user.id)
+        });
+    }
+
+    await upsertVipPrivatePanel(channel, interaction.user.id);
+
+    return replyToInteraction(interaction, {
+        content: `Dein privater Bereich ist bereit: ${channel}`,
+        ephemeral: true
+    });
+}
+
+async function updateTrackedItemCopiesWithListing(guild, listedItem) {
+    const status = getListedItemStatus(listedItem);
+    const embed = buildStoredListingEmbed(listedItem);
+    const row = buildListingActionRow(
+        listedItem.itemId,
+        listedItem.sellerId,
+        listedItem.url || listedItem.messageUrl || WEBSITE_URL,
+        status
+    );
+    const channelsToCheck = new Map();
+
+    for (const channelId of ITEM_MIRROR_CHANNEL_IDS) {
+        const channel = await guild.channels.fetch(channelId).catch(() => null);
+        if (channel?.type === ChannelType.GuildText) {
+            channelsToCheck.set(channel.id, channel);
+        }
+    }
+
+    const favoriteChannels = guild.channels.cache.filter(channel =>
+        channel.type === ChannelType.GuildText && channel.name.startsWith('favs-')
+    );
+
+    for (const channel of favoriteChannels.values()) {
+        channelsToCheck.set(channel.id, channel);
+    }
+
+    for (const channel of channelsToCheck.values()) {
+        const messages = await channel.messages.fetch({ limit: 100 }).catch(() => null);
+        if (!messages) {
+            continue;
+        }
+
+        const copies = messages.filter(message =>
+            message.author.id === client.user.id &&
+            getEmbedFooterText(message.embeds[0])?.includes(`Item-ID: ${listedItem.itemId}`)
+        );
+
+        for (const copy of copies.values()) {
+            await copy.edit({
+                content: buildListingContentForStatus(status, listedItem),
+                embeds: [embed],
+                components: [row]
+            }).catch(() => {});
+        }
+    }
+}
+
+async function showVipEditItemModal(interaction, itemId) {
+    const listedItem = getListedItem(itemId);
+    if (!listedItem || listedItem.sellerId !== interaction.user.id) {
+        return replyToInteraction(interaction, {
+            content: 'Dieses Listing gehoert nicht zu deinem Account.',
+            ephemeral: true
+        });
+    }
+
+    const modal = new ModalBuilder()
+        .setCustomId(`vip_edit_item_modal_${itemId}`)
+        .setTitle('Listing bearbeiten');
+
+    const titleInput = new TextInputBuilder()
+        .setCustomId('edit_title')
+        .setLabel('Titel')
+        .setStyle(TextInputStyle.Short)
+        .setValue((listedItem.title || '').slice(0, 100))
+        .setRequired(true);
+    const brandInput = new TextInputBuilder()
+        .setCustomId('edit_brand')
+        .setLabel('Marke')
+        .setStyle(TextInputStyle.Short)
+        .setValue((listedItem.brand || '').slice(0, 100))
+        .setRequired(true);
+    const priceInput = new TextInputBuilder()
+        .setCustomId('edit_price')
+        .setLabel('Preis')
+        .setStyle(TextInputStyle.Short)
+        .setValue((listedItem.price || '').slice(0, 100))
+        .setRequired(true);
+    const sizeInput = new TextInputBuilder()
+        .setCustomId('edit_size')
+        .setLabel('Groesse')
+        .setStyle(TextInputStyle.Short)
+        .setValue((listedItem.size || '').slice(0, 100))
+        .setRequired(true);
+    const urlInput = new TextInputBuilder()
+        .setCustomId('edit_url')
+        .setLabel('Vinted Link')
+        .setStyle(TextInputStyle.Short)
+        .setValue((listedItem.url || '').slice(0, 100))
+        .setRequired(true);
+
+    modal.addComponents(
+        new ActionRowBuilder().addComponents(titleInput),
+        new ActionRowBuilder().addComponents(brandInput),
+        new ActionRowBuilder().addComponents(priceInput),
+        new ActionRowBuilder().addComponents(sizeInput),
+        new ActionRowBuilder().addComponents(urlInput)
+    );
+
+    return interaction.showModal(modal);
+}
+
+async function handleVipEditItemSubmit(interaction, itemId) {
+    const listedItem = getListedItem(itemId);
+    if (!listedItem || listedItem.sellerId !== interaction.user.id) {
+        return replyToInteraction(interaction, {
+            content: 'Dieses Listing gehoert nicht zu deinem Account.',
+            ephemeral: true
+        });
+    }
+
+    listedItem.title = interaction.fields.getTextInputValue('edit_title').trim();
+    listedItem.brand = interaction.fields.getTextInputValue('edit_brand').trim();
+    listedItem.price = interaction.fields.getTextInputValue('edit_price').trim();
+    listedItem.size = interaction.fields.getTextInputValue('edit_size').trim();
+    listedItem.url = interaction.fields.getTextInputValue('edit_url').trim();
+    listedItem.updatedAt = new Date().toISOString();
+    saveMockupStore();
+
+    await updateTrackedItemCopiesWithListing(interaction.guild, listedItem);
+    await upsertVipPrivatePanel(interaction.channel, interaction.user.id).catch(() => null);
+
+    return replyToInteraction(interaction, {
+        content: 'Listing wurde aktualisiert.',
+        ephemeral: true
+    });
 }
 
 function buildAiExplainerPanel() {
@@ -5025,6 +5897,24 @@ async function refreshPanels() {
     }
 
     try {
+        await sendVintedNotificationPanel();
+    } catch (error) {
+        console.error('Vinted notification panel error:', error.message);
+    }
+
+    try {
+        await sendVipTutorialPanel();
+    } catch (error) {
+        console.error('VIP tutorial panel error:', error.message);
+    }
+
+    try {
+        await sendVipPanelManagerPanel();
+    } catch (error) {
+        console.error('VIP panel manager error:', error.message);
+    }
+
+    try {
         await sendAiExplainerPanel();
     } catch (error) {
         console.error('AI explainer channel error:', error.message);
@@ -6249,11 +7139,39 @@ client.on('interactionCreate', async interaction => {
                     ephemeral: true
                 });
             }
+
+            if (interaction.customId.startsWith('vinted_notify_brand_')) {
+                return handleBrandNotificationSelect(interaction);
+            }
+
+            if (interaction.customId === 'vinted_notify_categories') {
+                return handleCategoryNotificationSelect(interaction);
+            }
+
+            if (interaction.customId === 'vip_edit_item_select') {
+                return showVipEditItemModal(interaction, interaction.values[0]);
+            }
         }
 
         if (interaction.isButton()) {
             if (interaction.customId === 'verify_member') {
                 return handleVerifyButton(interaction);
+            }
+
+            if (interaction.customId === 'open_vinted_notifications') {
+                return showNotificationSettings(interaction);
+            }
+
+            if (interaction.customId === 'open_vip_change_panels') {
+                return openOrRefreshVipChangeChannel(interaction);
+            }
+
+            if (interaction.customId === 'refresh_vip_change_panels') {
+                await upsertVipPrivatePanel(interaction.channel, interaction.user.id);
+                return replyToInteraction(interaction, {
+                    content: 'Dein Panel wurde aktualisiert.',
+                    ephemeral: true
+                });
             }
 
             if (interaction.customId === 'open_ai_chat') {
@@ -6981,6 +7899,13 @@ client.on('interactionCreate', async interaction => {
                 return handleSellerReviewSubmit(interaction);
             }
 
+            if (interaction.customId.startsWith('vip_edit_item_modal_')) {
+                return handleVipEditItemSubmit(
+                    interaction,
+                    interaction.customId.replace('vip_edit_item_modal_', '')
+                );
+            }
+
             if (interaction.customId === 'upload_modal') {
                 activeUploads.set(interaction.user.id, {
                     type: 'sell',
@@ -7284,6 +8209,9 @@ client.on('messageCreate', async message => {
     });
     await forwardLatestGoodsToBrandChannels(message).catch(error => {
         console.error('Brand forward failed:', error.message);
+    });
+    await forwardSpecialListingChannels(message).catch(error => {
+        console.error('Special listing forward failed:', error.message);
     });
 
     if (message.author.bot) {
