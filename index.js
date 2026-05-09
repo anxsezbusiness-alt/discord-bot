@@ -426,6 +426,7 @@ function createEmptyMockupStore() {
         communityCookedHistory: {},
         sellerReviews: {},
         notificationPreferences: {},
+        languagePreferences: {},
         announcedAnalyticsWeeks: []
     };
 }
@@ -469,6 +470,10 @@ function loadMockupStore() {
             notificationPreferences:
                 parsed.notificationPreferences && typeof parsed.notificationPreferences === 'object'
                     ? parsed.notificationPreferences
+                    : {},
+            languagePreferences:
+                parsed.languagePreferences && typeof parsed.languagePreferences === 'object'
+                    ? parsed.languagePreferences
                     : {},
             announcedAnalyticsWeeks: Array.isArray(parsed.announcedAnalyticsWeeks)
                 ? parsed.announcedAnalyticsWeeks
@@ -1564,6 +1569,511 @@ function buildPanelEmbed({ title, description, color, fields = [], footerText })
     return embed;
 }
 
+const LANGUAGE_CONFIGS = [
+    { code: 'en', label: 'English', emoji: '🇬🇧' },
+    { code: 'de', label: 'Deutsch', emoji: '🇩🇪' },
+    { code: 'fr', label: 'Francais', emoji: '🇫🇷' },
+    { code: 'es', label: 'Espanol', emoji: '🇪🇸' },
+    { code: 'it', label: 'Italiano', emoji: '🇮🇹' },
+    { code: 'nl', label: 'Nederlands', emoji: '🇳🇱' },
+    { code: 'pl', label: 'Polski', emoji: '🇵🇱' },
+    { code: 'pt', label: 'Portugues', emoji: '🇵🇹' }
+];
+
+const LOCALIZED_PANELS = {
+    en: {
+        languageSaved: 'Language saved. This panel is only visible to you.',
+        panelHubTitle: '🌐 VELOO Language Panel',
+        panelHubDescription: 'Choose a panel below. The translated version will be shown privately in this channel.',
+        panelSelectPlaceholder: 'Choose translated panel',
+        languagePlaceholder: 'Change language',
+        openNotifications: '🔔 Manage notifications',
+        supportButton: '🎟️ Create Ticket',
+        cooperationButton: '🤝 Create Request',
+        reviewButton: '⭐ Submit Review',
+        askAiButton: '✨ Open AI Chat',
+        verifyButton: '✅ Verify',
+        buyTokens: 'Buy Tokens',
+        website: 'Website',
+        support: 'Support',
+        panels: {
+            guide: {
+                title: '🧭 VELOO&YESTERA Server Guide',
+                description: 'Start here: verification, roles, Vinted tools, VIP, AI tokens and support.',
+                fields: [
+                    ['✅ 1. Verify first', 'New members start as Unverified. Verify once, then you receive the Verified role and can use the server.'],
+                    ['🎭 2. Choose roles', 'Pick your interests so you see the right areas, drops and community updates.'],
+                    ['🛒 3. Sell & explore', 'Use latest-goods for pieces, price drops for discounts and bundles for package deals.'],
+                    ['👑 4. VIP', 'VIP gives stronger visibility, highlighted layouts and access to private change-panels.'],
+                    ['🤖 5. AI tokens', 'Tokens are used by the AI depending on the size of your question and answer. It is not one question equals one token.'],
+                    ['🛟 6. Need help?', 'Open a support ticket if something does not work or you need staff help.']
+                ]
+            },
+            notifications: {
+                title: '🔔 Vinted Notifications',
+                description: 'Choose brands and categories so you only get pinged for pieces you actually care about.',
+                fields: [
+                    ['1. Brands', 'Select from all 79 brand channels like Nike, Adidas, Stone Island, Gucci and more.'],
+                    ['2. Categories', 'Filter by shoes, hoodies, jackets, bags, price drops, bundles, legit checks and sold posts.'],
+                    ['3. Matching', 'The bot ignores upper/lowercase and pings only when brand and category match your setup.']
+                ]
+            },
+            vip: {
+                title: '👑 VIP Tutorial',
+                description: 'VIP is built for more visibility, cleaner listing control and faster selling workflow.',
+                fields: [
+                    ['Visibility', 'VIP listings get highlighted and stand out more inside archive and brand areas.'],
+                    ['Change Panels', 'VIP members can open a private channel and edit their own latest-goods panels.'],
+                    ['Price Drops & Bundles', 'Discounted items and package deals are mirrored into their own sections.'],
+                    ['AI Tokens', 'VIP can include AI token bonuses depending on your website setup.']
+                ]
+            },
+            ai: {
+                title: '✨ VELOO AI & Token Guide',
+                description: 'The AI is focused on Vinted, vintage, resell, marketing tactics and practical tutorials.',
+                fields: [
+                    ['What it can do', 'Titles, descriptions, pricing ideas, photo advice, buyer messages, bundles and upload plans.'],
+                    ['Token billing', 'Tokens are based on real AI usage: your prompt plus the answer length.'],
+                    ['Best input', 'Send brand, size, condition, target price, photos situation and goal for better answers.']
+                ]
+            },
+            support: {
+                title: '🎟️ Support Tickets',
+                description: 'Open a private support chat with the team for help, bugs or questions.',
+                fields: [
+                    ['Use tickets for', 'Help, bug reports, payment issues, account problems or server questions.'],
+                    ['Write clearly', 'Describe what happened, what you need and add links/screenshots if possible.']
+                ]
+            },
+            cooperation: {
+                title: '🤝 Collaboration Protocol',
+                description: 'Send your project data so management can review your request faster.',
+                fields: [
+                    ['Project data', 'Name/link, stats, concept, proposal and contact.'],
+                    ['Review', 'The team checks your data and answers inside a private request channel.']
+                ]
+            },
+            review: {
+                title: '⭐ Seller Reviews',
+                description: 'Review sellers after real deals so the community can see who communicates and ships cleanly.',
+                fields: [
+                    ['Submit review', 'Add seller, rating, item/deal and honest feedback.'],
+                    ['Stay fair', 'Only real deals. Fake or revenge reviews can be removed by staff.']
+                ]
+            },
+            sell: {
+                title: '🛒 Sell Your Piece',
+                description: 'Enter your item details, send one image with `done`, then your listing goes live.',
+                fields: [
+                    ['Flow', 'Button -> modal -> one image + `done`.'],
+                    ['Status', 'Favorites, offers, reserved and sold stay visible for archive overview.']
+                ]
+            },
+            verify: {
+                title: '✅ Verification',
+                description: 'Verify once to unlock the server and receive the Verified role.',
+                fields: [
+                    ['Why?', 'This keeps the server clean and gives new members the right access.'],
+                    ['Afterwards', 'Unverified is removed and Verified is added automatically.']
+                ]
+            }
+        }
+    },
+    de: {
+        languageSaved: 'Sprache gespeichert. Dieses Panel sieht nur du.',
+        panelHubTitle: '🌐 VELOO Sprach-Panel',
+        panelHubDescription: 'Waehle unten ein Panel. Die uebersetzte Version erscheint privat in diesem Channel.',
+        panelSelectPlaceholder: 'Uebersetztes Panel waehlen',
+        languagePlaceholder: 'Sprache wechseln',
+        openNotifications: '🔔 Benachrichtigungen anpassen',
+        supportButton: '🎟️ Ticket erstellen',
+        cooperationButton: '🤝 Anfrage erstellen',
+        reviewButton: '⭐ Review abgeben',
+        askAiButton: '✨ AI Chat oeffnen',
+        verifyButton: '✅ Verifizieren',
+        buyTokens: 'Tokens kaufen',
+        website: 'Website',
+        support: 'Support',
+        panels: {
+            guide: {
+                title: '🧭 VELOO&YESTERA Server Guide',
+                description: 'Starte hier: Verification, Rollen, Vinted Tools, VIP, AI Tokens und Support.',
+                fields: [
+                    ['✅ 1. Erst verifizieren', 'Neue Member starten als Unverified. Nach der Verifizierung bekommst du Verified und kannst den Server nutzen.'],
+                    ['🎭 2. Rollen waehlen', 'Waehle deine Interessen, damit du passende Bereiche, Drops und Community-Updates siehst.'],
+                    ['🛒 3. Verkaufen & entdecken', 'Nutze latest-goods fuer Pieces, price-drops fuer Rabatte und bundles fuer Pakete.'],
+                    ['👑 4. VIP', 'VIP gibt mehr Sichtbarkeit, goldene Highlights und Zugriff auf private change-panels.'],
+                    ['🤖 5. AI Tokens', 'Tokens werden nach AI-Nutzung berechnet: Frage plus Antwort. Es ist nicht 1 Frage = 1 Token.'],
+                    ['🛟 6. Hilfe', 'Oeffne ein Support-Ticket, wenn etwas nicht funktioniert oder du Staff-Hilfe brauchst.']
+                ]
+            },
+            notifications: {
+                title: '🔔 Vinted Benachrichtigungen',
+                description: 'Waehle Marken und Kategorien, damit du nur fuer passende Pieces gepingt wirst.',
+                fields: [
+                    ['1. Marken', 'Waehle aus allen 79 Marken wie Nike, Adidas, Stone Island, Gucci und mehr.'],
+                    ['2. Kategorien', 'Filtere nach Schuhen, Hoodies, Jacken, Taschen, Price Drops, Bundles, Legit Checks und Sold.'],
+                    ['3. Matching', 'Gross-/Kleinschreibung wird ignoriert und du wirst nur bei passenden Treffern gepingt.']
+                ]
+            },
+            vip: {
+                title: '👑 VIP Tutorial',
+                description: 'VIP ist fuer mehr Sichtbarkeit, bessere Listing-Kontrolle und schnelleren Verkaufsflow gebaut.',
+                fields: [
+                    ['Sichtbarkeit', 'VIP Listings werden hervorgehoben und fallen in Archive- und Markenbereichen staerker auf.'],
+                    ['Change Panels', 'VIP Member koennen private Channels oeffnen und eigene latest-goods Panels bearbeiten.'],
+                    ['Price Drops & Bundles', 'Reduzierte Pieces und Pakete werden in eigene Bereiche gespiegelt.'],
+                    ['AI Tokens', 'VIP kann je nach Website-Setup Token-Boni enthalten.']
+                ]
+            },
+            ai: {
+                title: '✨ VELOO AI & Token Guide',
+                description: 'Die AI ist auf Vinted, Vintage, Resell, Marketing-Taktiken und Tutorials spezialisiert.',
+                fields: [
+                    ['Was sie kann', 'Titel, Beschreibungen, Preisideen, Foto-Tipps, Buyer-Messages, Bundles und Upload-Plaene.'],
+                    ['Token-Abrechnung', 'Tokens richten sich nach echter AI-Nutzung: deiner Frage plus der Antwortlaenge.'],
+                    ['Beste Eingabe', 'Sende Marke, Groesse, Zustand, Preisziel, Fotosituation und Ziel fuer bessere Antworten.']
+                ]
+            },
+            support: {
+                title: '🎟️ Support Tickets',
+                description: 'Oeffne einen privaten Support-Chat fuer Hilfe, Bugs oder Fragen.',
+                fields: [
+                    ['Tickets fuer', 'Hilfe, Bug Reports, Zahlungen, Account-Probleme oder Server-Fragen.'],
+                    ['Klar schreiben', 'Beschreibe was passiert ist, was du brauchst und fuege Links/Screenshots hinzu.']
+                ]
+            },
+            cooperation: {
+                title: '🤝 Collaboration Protocol',
+                description: 'Sende deine Projektdaten, damit das Management schneller pruefen kann.',
+                fields: [
+                    ['Project Data', 'Name/Link, Stats, Konzept, Vorschlag und Kontakt.'],
+                    ['Review', 'Das Team prueft die Daten und antwortet im privaten Anfrage-Channel.']
+                ]
+            },
+            review: {
+                title: '⭐ Seller Reviews',
+                description: 'Bewerte Seller nach echten Deals, damit die Community trusted Seller erkennt.',
+                fields: [
+                    ['Review abgeben', 'Seller, Sterne, Deal/Item und ehrliches Feedback eintragen.'],
+                    ['Fair bleiben', 'Nur echte Deals. Fake- oder Rache-Reviews koennen entfernt werden.']
+                ]
+            },
+            sell: {
+                title: '🛒 Piece verkaufen',
+                description: 'Daten eintragen, ein Bild mit `done` senden, Listing geht live.',
+                fields: [
+                    ['Flow', 'Button -> Modal -> ein Bild + `done`.'],
+                    ['Status', 'Favoriten, Angebote, reserviert und verkauft bleiben sichtbar.']
+                ]
+            },
+            verify: {
+                title: '✅ Verification',
+                description: 'Verifiziere dich einmal, um den Server freizuschalten.',
+                fields: [
+                    ['Warum?', 'So bleibt der Server sauber und neue Member bekommen richtigen Zugriff.'],
+                    ['Danach', 'Unverified wird entfernt und Verified automatisch gesetzt.']
+                ]
+            }
+        }
+    }
+};
+
+for (const language of ['fr', 'es', 'it', 'nl', 'pl', 'pt']) {
+    LOCALIZED_PANELS[language] = LOCALIZED_PANELS.en;
+}
+
+LOCALIZED_PANELS.fr = {
+    ...LOCALIZED_PANELS.en,
+    languageSaved: 'Langue enregistree. Ce panneau est visible uniquement pour toi.',
+    panelHubTitle: '🌐 Panneau de langue VELOO',
+    panelHubDescription: 'Choisis un panneau ci-dessous. La version traduite sera affichee en prive dans ce salon.',
+    panelSelectPlaceholder: 'Choisir un panneau traduit',
+    languagePlaceholder: 'Changer de langue',
+    openNotifications: '🔔 Gerer les notifications',
+    supportButton: '🎟️ Creer un ticket',
+    cooperationButton: '🤝 Creer une demande',
+    reviewButton: '⭐ Envoyer un avis',
+    askAiButton: '✨ Ouvrir le chat AI',
+    verifyButton: '✅ Verifier',
+    buyTokens: 'Acheter des tokens',
+    website: 'Site web',
+    support: 'Support',
+    panels: {
+        guide: {
+            title: '🧭 Guide du serveur VELOO&YESTERA',
+            description: 'Commence ici: verification, roles, outils Vinted, VIP, tokens AI et support.',
+            fields: [
+                ['✅ 1. Verification', 'Les nouveaux membres commencent comme Unverified. Apres la verification, tu recois le role Verified.'],
+                ['🎭 2. Choisir les roles', 'Choisis tes interets pour voir les bons espaces, drops et updates.'],
+                ['🛒 3. Vendre & explorer', 'Utilise latest-goods pour les pieces, price-drops pour les reductions et bundles pour les lots.'],
+                ['👑 4. VIP', 'VIP donne plus de visibilite, des highlights et l acces aux change-panels prives.'],
+                ['🤖 5. Tokens AI', 'Les tokens sont calcules selon l usage AI: ta question plus la longueur de la reponse.'],
+                ['🛟 6. Besoin d aide?', 'Ouvre un ticket support si quelque chose ne fonctionne pas.']
+            ]
+        },
+        notifications: {
+            title: '🔔 Notifications Vinted',
+            description: 'Choisis marques et categories pour recevoir uniquement les pings importants pour toi.',
+            fields: [
+                ['1. Marques', 'Selectionne parmi 79 marques comme Nike, Adidas, Stone Island, Gucci et plus.'],
+                ['2. Categories', 'Filtre par chaussures, hoodies, vestes, sacs, price drops, bundles, legit checks et sold.'],
+                ['3. Matching', 'Le bot ignore majuscules/minuscules et ping seulement si marque et categorie correspondent.']
+            ]
+        },
+        vip: {
+            title: '👑 Tutoriel VIP',
+            description: 'VIP est fait pour plus de visibilite, un meilleur controle des listings et un workflow plus rapide.',
+            fields: [
+                ['Visibilite', 'Les listings VIP sont mis en avant dans les espaces archive et marques.'],
+                ['Change Panels', 'Les membres VIP peuvent ouvrir un salon prive et modifier leurs panels latest-goods.'],
+                ['Price Drops & Bundles', 'Les reductions et lots sont copies dans leurs propres sections.'],
+                ['Tokens AI', 'VIP peut inclure des bonus de tokens selon la configuration du site.']
+            ]
+        },
+        ai: {
+            title: '✨ Guide AI & Tokens VELOO',
+            description: 'L AI est specialisee sur Vinted, vintage, resell, marketing et tutoriels pratiques.',
+            fields: [
+                ['Ce qu elle fait', 'Titres, descriptions, prix, conseils photo, messages acheteur, bundles et plans upload.'],
+                ['Facturation tokens', 'Les tokens dependent de l usage reel: ton prompt plus la longueur de la reponse.'],
+                ['Meilleure demande', 'Envoie marque, taille, etat, prix cible, situation photo et objectif.']
+            ]
+        },
+        support: {
+            title: '🎟️ Tickets Support',
+            description: 'Ouvre un chat prive avec l equipe pour obtenir de l aide, signaler un bug ou poser une question.',
+            fields: [
+                ['Utilise les tickets pour', 'Aide, bugs, paiements, problemes de compte ou questions serveur.'],
+                ['Sois clair', 'Explique ce qui s est passe, ce dont tu as besoin et ajoute liens/screenshots si possible.']
+            ]
+        },
+        cooperation: {
+            title: '🤝 Protocole Collaboration',
+            description: 'Envoie les donnees du projet pour que le management puisse verifier plus vite.',
+            fields: [
+                ['Donnees projet', 'Nom/lien, stats, concept, proposition et contact.'],
+                ['Review', 'L equipe verifie les donnees et repond dans un salon prive.']
+            ]
+        },
+        review: {
+            title: '⭐ Avis Seller',
+            description: 'Note les sellers apres de vrais deals pour aider la communaute.',
+            fields: [
+                ['Envoyer un avis', 'Ajoute seller, note, item/deal et feedback honnete.'],
+                ['Reste fair', 'Seulement de vrais deals. Les faux avis peuvent etre supprimes.']
+            ]
+        },
+        sell: {
+            title: '🛒 Vendre une piece',
+            description: 'Entre les infos, envoie une image avec `done`, puis le listing passe live.',
+            fields: [
+                ['Flow', 'Bouton -> modal -> une image + `done`.'],
+                ['Statut', 'Favoris, offres, reserved et sold restent visibles pour l archive.']
+            ]
+        },
+        verify: {
+            title: '✅ Verification',
+            description: 'Verifie-toi une fois pour debloquer le serveur et recevoir le role Verified.',
+            fields: [
+                ['Pourquoi?', 'Cela garde le serveur propre et donne le bon acces aux nouveaux membres.'],
+                ['Apres', 'Unverified est retire et Verified est ajoute automatiquement.']
+            ]
+        }
+    }
+};
+
+function normalizeLanguageCode(languageCode) {
+    return LANGUAGE_CONFIGS.some(language => language.code === languageCode) ? languageCode : 'en';
+}
+
+function getUserLanguage(userId) {
+    const languagePreferences = mockupStore.languagePreferences || {};
+    return normalizeLanguageCode(languagePreferences[userId] || 'en');
+}
+
+function setUserLanguage(userId, languageCode) {
+    if (!mockupStore.languagePreferences || typeof mockupStore.languagePreferences !== 'object') {
+        mockupStore.languagePreferences = {};
+    }
+
+    mockupStore.languagePreferences[userId] = normalizeLanguageCode(languageCode);
+    saveMockupStore();
+    return mockupStore.languagePreferences[userId];
+}
+
+function tPanel(languageCode = 'en') {
+    return LOCALIZED_PANELS[normalizeLanguageCode(languageCode)] || LOCALIZED_PANELS.en;
+}
+
+function buildLanguageSelectRow(userId = null, customId = 'language_select') {
+    const selectedLanguage = userId ? getUserLanguage(userId) : 'en';
+    return new ActionRowBuilder().addComponents(
+        new StringSelectMenuBuilder()
+            .setCustomId(customId)
+            .setPlaceholder('🌐 Language / Sprache')
+            .setMinValues(1)
+            .setMaxValues(1)
+            .addOptions(
+                LANGUAGE_CONFIGS.map(language => ({
+                    label: language.label,
+                    value: language.code,
+                    emoji: language.emoji,
+                    default: language.code === selectedLanguage
+                }))
+            )
+    );
+}
+
+function withLanguageControls(payload, userId = null) {
+    const components = [...(payload.components || [])];
+    const hasLanguageSelect = components.some(row =>
+        row.components?.some(component => (component.data?.custom_id || component.customId) === 'language_select')
+    );
+
+    if (!hasLanguageSelect && components.length < 5) {
+        components.push(buildLanguageSelectRow(userId));
+    }
+
+    return { ...payload, components };
+}
+
+function buildLocalizedPanelPayload(panelKey, languageCode, userId) {
+    const copy = tPanel(languageCode);
+    const panel = copy.panels[panelKey] || copy.panels.guide;
+    const embed = buildPanelEmbed({
+        title: panel.title,
+        description: panel.description,
+        color: '#d9c39a',
+        fields: panel.fields.map(([name, value]) => ({ name, value, inline: false })),
+        footerText: `VELOO&YESTERA // ${copy.languagePlaceholder.toUpperCase()}`
+    });
+
+    const actionRows = [];
+    if (panelKey === 'notifications') {
+        actionRows.push(new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId('open_vinted_notifications')
+                .setLabel(copy.openNotifications)
+                .setStyle(ButtonStyle.Primary)
+        ));
+    }
+
+    if (panelKey === 'support') {
+        actionRows.push(new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId('open_support_ticket')
+                .setLabel(copy.supportButton)
+                .setStyle(ButtonStyle.Primary)
+        ));
+    }
+
+    if (panelKey === 'cooperation') {
+        actionRows.push(new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId('open_cooperation_ticket')
+                .setLabel(copy.cooperationButton)
+                .setStyle(ButtonStyle.Primary)
+        ));
+    }
+
+    if (panelKey === 'review') {
+        actionRows.push(new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId('open_seller_review')
+                .setLabel(copy.reviewButton)
+                .setStyle(ButtonStyle.Primary)
+        ));
+    }
+
+    if (panelKey === 'ai') {
+        actionRows.push(new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId('open_ai_chat')
+                .setLabel(copy.askAiButton)
+                .setStyle(ButtonStyle.Primary),
+            new ButtonBuilder()
+                .setLabel(copy.buyTokens)
+                .setStyle(ButtonStyle.Link)
+                .setURL(AI_BUY_TOKENS_URL)
+        ));
+    }
+
+    if (panelKey === 'verify') {
+        actionRows.push(new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId('verify_member')
+                .setLabel(copy.verifyButton)
+                .setStyle(ButtonStyle.Success)
+        ));
+    }
+
+    const panelSelectRow = new ActionRowBuilder().addComponents(
+        new StringSelectMenuBuilder()
+            .setCustomId('localized_panel_select')
+            .setPlaceholder(copy.panelSelectPlaceholder)
+            .setMinValues(1)
+            .setMaxValues(1)
+            .addOptions([
+                { label: 'Server Guide', value: 'guide', emoji: '🧭' },
+                { label: 'Vinted Notifications', value: 'notifications', emoji: '🔔' },
+                { label: 'VIP Tutorial', value: 'vip', emoji: '👑' },
+                { label: 'AI Guide', value: 'ai', emoji: '✨' },
+                { label: 'Support Tickets', value: 'support', emoji: '🎟️' },
+                { label: 'Cooperations', value: 'cooperation', emoji: '🤝' },
+                { label: 'Seller Reviews', value: 'review', emoji: '⭐' },
+                { label: 'Sell Panel', value: 'sell', emoji: '🛒' },
+                { label: 'Verification', value: 'verify', emoji: '✅' }
+            ].map(option => ({ ...option, default: option.value === panelKey })))
+    );
+
+    return {
+        embeds: [embed],
+        components: [...actionRows, panelSelectRow, buildLanguageSelectRow(userId)]
+    };
+}
+
+function buildLanguageHubPayload(languageCode, userId) {
+    const copy = tPanel(languageCode);
+    const embed = buildPanelEmbed({
+        title: copy.panelHubTitle,
+        description: copy.panelHubDescription,
+        color: '#d9c39a',
+        fields: [
+            {
+                name: 'Current language',
+                value: LANGUAGE_CONFIGS.find(language => language.code === normalizeLanguageCode(languageCode))?.label || 'English',
+                inline: true
+            }
+        ],
+        footerText: 'VELOO&YESTERA // PRIVATE LANGUAGE PANEL'
+    });
+
+    const localizedPayload = buildLocalizedPanelPayload('guide', languageCode, userId);
+    return {
+        embeds: [embed, ...localizedPayload.embeds],
+        components: localizedPayload.components
+    };
+}
+
+async function handleLanguageSelect(interaction) {
+    const languageCode = setUserLanguage(interaction.user.id, interaction.values[0]);
+    const copy = tPanel(languageCode);
+    return replyToInteraction(interaction, {
+        content: copy.languageSaved,
+        ...buildLanguageHubPayload(languageCode, interaction.user.id),
+        ephemeral: true
+    });
+}
+
+async function handleLocalizedPanelSelect(interaction) {
+    const languageCode = getUserLanguage(interaction.user.id);
+    return replyToInteraction(interaction, {
+        ...buildLocalizedPanelPayload(interaction.values[0], languageCode, interaction.user.id),
+        ephemeral: true
+    });
+}
+
 function buildWelcomeComponents() {
     const guideRow = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
@@ -1700,18 +2210,23 @@ function buildServerGuidePanel() {
 }
 
 async function upsertPanelMessage(channel, title, payload) {
+    const decoratedPayload = withLanguageControls(payload);
+    const payloadTitle =
+        decoratedPayload.embeds?.[0]?.data?.title ||
+        decoratedPayload.embeds?.[0]?.title ||
+        title;
     const messages = await channel.messages.fetch({ limit: 50 });
     const existingPanel = messages.find(message =>
         message.author.id === client.user.id &&
-        message.embeds[0]?.title === title
+        [title, payloadTitle].includes(message.embeds[0]?.title)
     );
 
     if (existingPanel) {
-        await existingPanel.edit(payload);
+        await existingPanel.edit(decoratedPayload);
         return existingPanel;
     }
 
-    return channel.send(payload);
+    return channel.send(decoratedPayload);
 }
 
 async function sendServerGuidePanel() {
@@ -1724,6 +2239,8 @@ async function sendServerGuidePanel() {
 }
 
 function buildVintedNotificationPanel() {
+    return buildLocalizedPanelPayload('notifications', 'en');
+
     const embed = buildPanelEmbed({
         title: VINTED_NOTIFICATION_PANEL_TITLE,
         description:
@@ -1769,6 +2286,8 @@ async function sendVintedNotificationPanel() {
 }
 
 function buildVipTutorialPanel() {
+    return buildLocalizedPanelPayload('vip', 'en');
+
     const embed = buildPanelEmbed({
         title: VIP_TUTORIAL_PANEL_TITLE,
         description:
@@ -2217,6 +2736,8 @@ async function handleVipEditItemSubmit(interaction, itemId) {
 }
 
 function buildAiExplainerPanel() {
+    return buildLocalizedPanelPayload('ai', 'en');
+
     const aiPanelUrl = `https://discord.com/channels/${BOT_GUILD_ID}/${AI_PANEL_CHANNEL_ID}`;
 
     const embed = buildPanelEmbed({
@@ -2293,23 +2814,25 @@ async function sendAiExplainerPanel() {
 }
 
 function buildSupportTicketPanel() {
+    return buildLocalizedPanelPayload('support', 'en');
+
     const embed = buildPanelEmbed({
         title: SUPPORT_TICKET_PANEL_TITLE,
         description:
-            'Mit einem Ticket oeffnest du einen privaten Chat mit dem Support-Team, um Hilfe oder Anliegen direkt zu klaeren.',
+            'Open a private chat with the support team to solve questions, bugs or account issues directly.',
         color: '#f1c75b',
         fields: [
             {
-                name: '\uD83D\uDCCC Bitte erstelle ein Ticket nur fuer',
+                name: '\uD83D\uDCCC Please create a ticket only for',
                 value:
-                    '\uD83D\uDD27 Hilfe\n' +
+                    '\uD83D\uDD27 Help\n' +
                     '\uD83D\uDC1B Bug Reports\n' +
-                    '\uD83D\uDCAC Sonstige Fragen',
+                    '\uD83D\uDCAC Other questions',
                 inline: false
             },
             {
-                name: '\uD83D\uDCDD Wichtig',
-                value: 'Beschreibe dein Problem kurz und klar, damit wir dir schnell helfen koennen.',
+                name: '\uD83D\uDCDD Important',
+                value: 'Describe your issue clearly so the team can help you faster.',
                 inline: false
             }
         ],
@@ -2336,24 +2859,26 @@ async function sendSupportTicketPanel() {
 }
 
 function buildCooperationRequestPanel() {
+    return buildLocalizedPanelPayload('cooperation', 'en');
+
     const embed = buildPanelEmbed({
         title: COOPERATION_REQUEST_PANEL_TITLE,
         description:
-            'Um den Prozess zu beschleunigen, sende uns im Ticket bitte direkt folgende Informationen:',
+            'To speed up the review, please send the following information directly in the ticket:',
         color: '#f1c75b',
         fields: [
             {
                 name: 'PROJECT-DATA',
                 value:
-                    '\uD83D\uDD17 Name/Link: Server-Link, Instagram oder Website\n' +
-                    '\uD83D\uDCCA Stats: Memberzahl oder Engagement-Rate\n' +
-                    '\uD83D\uDCDD Konzept: kurze Beschreibung, worum es geht\n' +
-                    '\uD83D\uDCA1 Vorschlag: Partnerschaft, Event, Shoutout oder anderer Wunsch',
+                    '\uD83D\uDD17 Name/Link: server link, Instagram or website\n' +
+                    '\uD83D\uDCCA Stats: members, reach or engagement rate\n' +
+                    '\uD83D\uDCDD Concept: short description of the project\n' +
+                    '\uD83D\uDCA1 Proposal: partnership, event, shoutout or another idea',
                 inline: false
             },
             {
                 name: '\uD83D\uDD0E Review',
-                value: 'Unser Management-Team prueft deine Daten und meldet sich im privaten Ticket.',
+                value: 'The management team reviews your data and answers in the private ticket.',
                 inline: false
             }
         ],
@@ -2371,35 +2896,36 @@ function buildCooperationRequestPanel() {
 }
 
 function showSupportTicketModal(interaction) {
+    const isGerman = getUserLanguage(interaction.user.id) === 'de';
     const modal = new ModalBuilder()
         .setCustomId('support_ticket_modal')
         .setTitle('Support Ticket');
 
     const topicInput = new TextInputBuilder()
         .setCustomId('support_topic')
-        .setLabel('Worum geht es?')
-        .setPlaceholder('z.B. Hilfe, Bug Report, Frage zum Server')
+        .setLabel(isGerman ? 'Worum geht es?' : 'What is this about?')
+        .setPlaceholder(isGerman ? 'z.B. Hilfe, Bug Report, Frage zum Server' : 'e.g. help, bug report, server question')
         .setStyle(TextInputStyle.Short)
         .setRequired(true);
 
     const descriptionInput = new TextInputBuilder()
         .setCustomId('support_description')
-        .setLabel('Beschreibe dein Anliegen')
-        .setPlaceholder('Schreibe kurz und klar, was passiert ist oder was du brauchst.')
+        .setLabel(isGerman ? 'Beschreibe dein Anliegen' : 'Describe your issue')
+        .setPlaceholder(isGerman ? 'Schreibe kurz und klar, was passiert ist oder was du brauchst.' : 'Write clearly what happened or what you need.')
         .setStyle(TextInputStyle.Paragraph)
         .setRequired(true);
 
     const urgencyInput = new TextInputBuilder()
         .setCustomId('support_urgency')
-        .setLabel('Dringlichkeit')
-        .setPlaceholder('z.B. niedrig, normal, dringend')
+        .setLabel(isGerman ? 'Dringlichkeit' : 'Urgency')
+        .setPlaceholder(isGerman ? 'z.B. niedrig, normal, dringend' : 'e.g. low, normal, urgent')
         .setStyle(TextInputStyle.Short)
         .setRequired(false);
 
     const linkInput = new TextInputBuilder()
         .setCustomId('support_link')
-        .setLabel('Link / Screenshot-Hinweis')
-        .setPlaceholder('Optional: Link, Channel, Message-Link oder Screenshot-Hinweis')
+        .setLabel(isGerman ? 'Link / Screenshot-Hinweis' : 'Link / screenshot note')
+        .setPlaceholder(isGerman ? 'Optional: Link, Channel, Message-Link oder Screenshot-Hinweis' : 'Optional: link, channel, message link or screenshot note')
         .setStyle(TextInputStyle.Short)
         .setRequired(false);
 
@@ -2414,42 +2940,43 @@ function showSupportTicketModal(interaction) {
 }
 
 function showCooperationTicketModal(interaction) {
+    const isGerman = getUserLanguage(interaction.user.id) === 'de';
     const modal = new ModalBuilder()
         .setCustomId('cooperation_ticket_modal')
-        .setTitle('Cooperation Anfrage');
+        .setTitle(isGerman ? 'Cooperation Anfrage' : 'Cooperation Request');
 
     const projectInput = new TextInputBuilder()
         .setCustomId('coop_project')
         .setLabel('Name / Link')
-        .setPlaceholder('Server-Link, Instagram, Website oder Projektname')
+        .setPlaceholder(isGerman ? 'Server-Link, Instagram, Website oder Projektname' : 'Server link, Instagram, website or project name')
         .setStyle(TextInputStyle.Short)
         .setRequired(true);
 
     const statsInput = new TextInputBuilder()
         .setCustomId('coop_stats')
         .setLabel('Stats')
-        .setPlaceholder('Memberzahl, Reichweite, Engagement oder Zielgruppe')
+        .setPlaceholder(isGerman ? 'Memberzahl, Reichweite, Engagement oder Zielgruppe' : 'Members, reach, engagement or target audience')
         .setStyle(TextInputStyle.Short)
         .setRequired(true);
 
     const conceptInput = new TextInputBuilder()
         .setCustomId('coop_concept')
-        .setLabel('Konzept')
-        .setPlaceholder('Worum geht es bei deinem Projekt?')
+        .setLabel(isGerman ? 'Konzept' : 'Concept')
+        .setPlaceholder(isGerman ? 'Worum geht es bei deinem Projekt?' : 'What is your project about?')
         .setStyle(TextInputStyle.Paragraph)
         .setRequired(true);
 
     const proposalInput = new TextInputBuilder()
         .setCustomId('coop_proposal')
-        .setLabel('Vorschlag')
-        .setPlaceholder('Partnerschaft, Event, Shoutout, Content, Giveaway...')
+        .setLabel(isGerman ? 'Vorschlag' : 'Proposal')
+        .setPlaceholder(isGerman ? 'Partnerschaft, Event, Shoutout, Content, Giveaway...' : 'Partnership, event, shoutout, content, giveaway...')
         .setStyle(TextInputStyle.Paragraph)
         .setRequired(true);
 
     const contactInput = new TextInputBuilder()
         .setCustomId('coop_contact')
-        .setLabel('Kontakt')
-        .setPlaceholder('@username, E-Mail oder beste Kontaktmoeglichkeit')
+        .setLabel(isGerman ? 'Kontakt' : 'Contact')
+        .setPlaceholder(isGerman ? '@username, E-Mail oder beste Kontaktmoeglichkeit' : '@username, email or best contact option')
         .setStyle(TextInputStyle.Short)
         .setRequired(false);
 
@@ -2479,10 +3006,10 @@ function buildTicketDetailsEmbed(type, details = {}) {
 
     return buildPanelEmbed({
         title: type === 'cooperation' ? '📋 Cooperation Daten' : '📋 Support Details',
-        description: 'Diese Angaben kamen direkt aus dem Ticket-Formular.',
+        description: 'These details came directly from the ticket form.',
         color: type === 'cooperation' ? '#f1c75b' : '#6a7dff',
         fields,
-        footerText: 'VELOO&YESTERA // TICKET FORMULAR'
+        footerText: 'VELOO&YESTERA // TICKET FORM'
     });
 }
 
@@ -2574,17 +3101,17 @@ function buildTicketControlRow(status = 'open') {
     return new ActionRowBuilder().addComponents(
         new ButtonBuilder()
             .setCustomId('ticket_accept')
-            .setLabel('\u2705 Annehmen')
+            .setLabel('\u2705 Accept')
             .setStyle(ButtonStyle.Success)
             .setDisabled(!isOpen),
         new ButtonBuilder()
             .setCustomId('ticket_decline')
-            .setLabel('\u274C Ablehnen')
+            .setLabel('\u274C Decline')
             .setStyle(ButtonStyle.Secondary)
             .setDisabled(!isOpen),
         new ButtonBuilder()
             .setCustomId('ticket_delete')
-            .setLabel('\uD83D\uDDD1\uFE0F Loeschen')
+            .setLabel('\uD83D\uDDD1\uFE0F Delete')
             .setStyle(ButtonStyle.Danger)
     );
 }
@@ -2595,16 +3122,16 @@ function getTicketTypeLabel(type) {
 
 function buildTicketChannelEmbed(type, requester, status = 'open') {
     const statusText = {
-        open: '\u23F3 Offen - Team kann annehmen oder ablehnen',
-        accepted: '\u2705 Angenommen - Ticket wird bearbeitet',
-        declined: '\u274C Abgelehnt - Ticket kann geloescht werden'
+        open: '\u23F3 Open - staff can accept or decline',
+        accepted: '\u2705 Accepted - ticket is being handled',
+        declined: '\u274C Declined - ticket can be deleted'
     }[status] || status;
 
     const embed = buildPanelEmbed({
         title: `${type === 'cooperation' ? '\uD83E\uDD1D' : '\uD83C\uDF9F\uFE0F'} ${getTicketTypeLabel(type)}`,
         description:
-            `${requester} hat ein ${getTicketTypeLabel(type)} erstellt.\n` +
-            'Owner und Moderatoren koennen die Anfrage zuerst annehmen oder ablehnen. Wenn alles erledigt ist, kann der Channel geloescht werden.',
+            `${requester} created a ${getTicketTypeLabel(type)}.\n` +
+            'Owners and moderators can accept or decline the request first. When everything is done, the channel can be deleted.',
         color: type === 'cooperation' ? '#f1c75b' : '#6a7dff',
         fields: [
             {
@@ -2613,10 +3140,10 @@ function buildTicketChannelEmbed(type, requester, status = 'open') {
                 inline: false
             },
             {
-                name: type === 'cooperation' ? 'Was du jetzt senden solltest' : 'Was du jetzt beschreiben solltest',
+                name: type === 'cooperation' ? 'What you should send now' : 'What you should describe now',
                 value: type === 'cooperation'
-                    ? 'Name/Link, Stats, Konzept und deinen konkreten Vorschlag fuer die Cooperation.'
-                    : 'Beschreibe dein Problem kurz, klar und mit allen wichtigen Details.',
+                    ? 'Name/link, stats, concept and your concrete cooperation proposal.'
+                    : 'Describe your issue clearly with all important details.',
                 inline: false
             }
         ],
@@ -2646,7 +3173,7 @@ async function updateTicketMeta(channel, patch) {
 async function handleOpenTicketButton(interaction, type, details = {}) {
     if (!interaction.inGuild()) {
         return replyToInteraction(interaction, {
-            content: 'Tickets koennen nur im Server erstellt werden.',
+            content: 'Tickets can only be created inside the server.',
             ephemeral: true
         });
     }
@@ -2664,7 +3191,7 @@ async function handleOpenTicketButton(interaction, type, details = {}) {
 
     if (existingChannel) {
         return replyToInteraction(interaction, {
-            content: `Du hast schon ein offenes ${getTicketTypeLabel(type)}: <#${existingChannel.id}>`,
+            content: `You already have an open ${getTicketTypeLabel(type)}: <#${existingChannel.id}>`,
             ephemeral: true
         });
     }
@@ -2910,7 +3437,7 @@ async function handleTicketDelete(interaction) {
     }
 
     await replyToInteraction(interaction, {
-        content: 'Ticket wird geloescht...',
+        content: 'Deleting ticket...',
         ephemeral: true
     });
 
@@ -2930,23 +3457,23 @@ async function sendTicketIdleAlert(channel, meta) {
     const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
             .setCustomId(`ticket_idle_delete_${channel.id}`)
-            .setLabel('\uD83D\uDDD1\uFE0F Loeschen')
+            .setLabel('\uD83D\uDDD1\uFE0F Delete')
             .setStyle(ButtonStyle.Danger),
         new ButtonBuilder()
             .setCustomId(`ticket_idle_keep_${channel.id}`)
-            .setLabel('\u23F3 Noch lassen')
+            .setLabel('\u23F3 Keep open')
             .setStyle(ButtonStyle.Secondary)
     );
 
     const embed = buildPanelEmbed({
-        title: '\u23F0 Ticket lange inaktiv',
+        title: '\u23F0 Ticket inactive for a while',
         description:
-            `Das Ticket <#${channel.id}> wurde angenommen, aber seit ca. ${TICKET_IDLE_HOURS} Stunden nicht mehr beschrieben.\n` +
-            'Soll der Bot den Channel loeschen oder noch offen lassen?',
+            `The ticket <#${channel.id}> was accepted, but has not had activity for about ${TICKET_IDLE_HOURS} hours.\n` +
+            'Should the bot delete the channel or keep it open?',
         color: '#d6a34e',
         fields: [
             { name: 'Ticket', value: getTicketTypeLabel(meta.type), inline: true },
-            { name: 'Member', value: meta.userId ? `<@${meta.userId}>` : 'Unbekannt', inline: true }
+            { name: 'Member', value: meta.userId ? `<@${meta.userId}>` : 'Unknown', inline: true }
         ],
         footerText: 'VELOO&YESTERA // TICKET REMINDER'
     });
@@ -4492,6 +5019,8 @@ function getAiTokenBudget(question, username, balance) {
 }
 
 function buildVerificationPanel() {
+    return buildLocalizedPanelPayload('verify', 'en');
+
     const embed = buildPanelEmbed({
         title: VERIFICATION_PANEL_TITLE,
         description: '👋 Willkommen bei VELOO&YESTERA. Verifiziere dich kurz, dann wird dein Server-Zugang freigeschaltet.',
@@ -4527,8 +5056,7 @@ async function sendVerificationPanel() {
         return;
     }
 
-    await deletePanelMessages(verificationChannel, VERIFICATION_PANEL_TITLE);
-    await verificationChannel.send(buildVerificationPanel());
+    await upsertPanelMessage(verificationChannel, VERIFICATION_PANEL_TITLE, buildVerificationPanel());
 }
 
 async function grantJoinVerificationRole(member) {
@@ -4594,6 +5122,8 @@ async function handleVerifyButton(interaction) {
 }
 
 function buildAiMainPanel() {
+    return buildLocalizedPanelPayload('ai', 'en');
+
     const embed = buildPanelEmbed({
         title: '✨ VELOO&YESTERA AI',
         description: '💬 Moechtest du einen privaten Chat mit der AI eroeffnen?',
@@ -4680,7 +5210,7 @@ async function sendAiPanel() {
     }
 
     await deletePanelMessages(aiPanelChannel, ['VELOO&YESTERA AI', '✨ VELOO&YESTERA AI']);
-    await aiPanelChannel.send(buildAiMainPanel());
+    await upsertPanelMessage(aiPanelChannel, 'VELOO&YESTERA AI', buildAiMainPanel());
 }
 
 async function getOrCreateAiChannel(interaction) {
@@ -5041,7 +5571,7 @@ async function sendSellPanel() {
             .setStyle(ButtonStyle.Secondary)
     );
 
-    await sellChannel.send({ embeds: [embed], components: [row] });
+    await sellChannel.send(withLanguageControls({ embeds: [embed], components: [row] }));
 }
 
 async function sendTeamPanel() {
@@ -5082,7 +5612,7 @@ async function sendTeamPanel() {
             .setStyle(ButtonStyle.Secondary)
     );
 
-    await teamChannel.send({ embeds: [embed], components: [row] });
+    await teamChannel.send(withLanguageControls({ embeds: [embed], components: [row] }));
 }
 
 async function sendMockupPanel() {
@@ -5122,7 +5652,7 @@ async function sendMockupPanel() {
             .setStyle(ButtonStyle.Secondary)
     );
 
-    await mockupChannel.send({ embeds: [embed], components: [row] });
+    await mockupChannel.send(withLanguageControls({ embeds: [embed], components: [row] }));
 }
 
 async function sendOutfitPanel() {
@@ -5162,7 +5692,7 @@ async function sendOutfitPanel() {
             .setStyle(ButtonStyle.Secondary)
     );
 
-    await outfitChannel.send({ embeds: [embed], components: [row] });
+    await outfitChannel.send(withLanguageControls({ embeds: [embed], components: [row] }));
 }
 
 async function sendIsoPanel() {
@@ -5199,7 +5729,7 @@ async function sendIsoPanel() {
             .setStyle(ButtonStyle.Secondary)
     );
 
-    await isoChannel.send({ embeds: [embed], components: [row] });
+    await isoChannel.send(withLanguageControls({ embeds: [embed], components: [row] }));
 }
 
 async function sendReactionRolePanelLegacy() {
@@ -5233,10 +5763,10 @@ async function sendReactionRolePanelLegacy() {
         footerText: 'VELOO&YESTERA // ROLLEN'
     });
 
-    await roleChannel.send({
+    await roleChannel.send(withLanguageControls({
         embeds: [embed],
         components: buildReactionRoleRows()
-    });
+    }));
 }
 
 async function sendReactionRolePanel() {
@@ -5267,10 +5797,10 @@ async function sendReactionRolePanel() {
         footerText: 'VELOO&YESTERA // ROLLEN'
     });
 
-    await roleChannel.send({
+    await roleChannel.send(withLanguageControls({
         embeds: [embed],
         components: buildReactionRoleRows()
-    });
+    }));
 }
 
 function getCreatorApplication(applicationId) {
@@ -5431,7 +5961,7 @@ async function sendRulesMessage() {
         footerText: 'VELOO&YESTERA // REGELN'
     });
 
-    await rulesChannel.send({ embeds: [embed] });
+    await rulesChannel.send(withLanguageControls({ embeds: [embed] }));
 }
 
 async function sendCooperationPanel() {
@@ -5469,7 +5999,7 @@ async function sendCooperationPanel() {
             .setStyle(ButtonStyle.Primary)
     );
 
-    await cooperationChannel.send({ embeds: [embed], components: [row] });
+    await cooperationChannel.send(withLanguageControls({ embeds: [embed], components: [row] }));
 }
 
 async function sendCooperationRequestTicketPanel() {
@@ -5483,6 +6013,8 @@ async function sendCooperationRequestTicketPanel() {
 }
 
 function buildSellerReviewPanel() {
+    return buildLocalizedPanelPayload('review', 'en');
+
     const embed = buildPanelEmbed({
         title: SELLER_REVIEW_PANEL_TITLE,
         description:
@@ -5878,7 +6410,7 @@ async function sendCreatorApplicationPanel() {
             .setStyle(ButtonStyle.Success)
     );
 
-    await creatorChannel.send({ embeds: [embed], components: [row] });
+    await creatorChannel.send(withLanguageControls({ embeds: [embed], components: [row] }));
 }
 
 async function refreshPanels() {
@@ -7070,6 +7602,14 @@ client.once('ready', async () => {
 client.on('interactionCreate', async interaction => {
     try {
         if (interaction.isStringSelectMenu()) {
+            if (interaction.customId === 'language_select') {
+                return handleLanguageSelect(interaction);
+            }
+
+            if (interaction.customId === 'localized_panel_select') {
+                return handleLocalizedPanelSelect(interaction);
+            }
+
             if (interaction.customId === 'reaction_roles_select') {
                 if (!interaction.inGuild()) {
                     return replyToInteraction(interaction, {
@@ -7878,10 +8418,10 @@ client.on('interactionCreate', async interaction => {
 
             if (interaction.customId === 'support_ticket_modal') {
                 return handleOpenTicketButton(interaction, 'support', {
-                    'Anliegen': interaction.fields.getTextInputValue('support_topic'),
-                    'Beschreibung': interaction.fields.getTextInputValue('support_description'),
-                    'Dringlichkeit': interaction.fields.getTextInputValue('support_urgency') || 'normal',
-                    'Link / Screenshot': interaction.fields.getTextInputValue('support_link') || 'kein Link'
+                    'Topic': interaction.fields.getTextInputValue('support_topic'),
+                    'Description': interaction.fields.getTextInputValue('support_description'),
+                    'Urgency': interaction.fields.getTextInputValue('support_urgency') || 'normal',
+                    'Link / Screenshot': interaction.fields.getTextInputValue('support_link') || 'no link'
                 });
             }
 
@@ -7889,9 +8429,9 @@ client.on('interactionCreate', async interaction => {
                 return handleOpenTicketButton(interaction, 'cooperation', {
                     'Name / Link': interaction.fields.getTextInputValue('coop_project'),
                     'Stats': interaction.fields.getTextInputValue('coop_stats'),
-                    'Konzept': interaction.fields.getTextInputValue('coop_concept'),
-                    'Vorschlag': interaction.fields.getTextInputValue('coop_proposal'),
-                    'Kontakt': interaction.fields.getTextInputValue('coop_contact') || 'kein Kontakt angegeben'
+                    'Concept': interaction.fields.getTextInputValue('coop_concept'),
+                    'Proposal': interaction.fields.getTextInputValue('coop_proposal'),
+                    'Contact': interaction.fields.getTextInputValue('coop_contact') || 'no contact provided'
                 });
             }
 
