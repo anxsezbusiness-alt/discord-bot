@@ -93,13 +93,17 @@ const VIP_EXPIRY_REMINDER_DAYS = Number(process.env.VIP_EXPIRY_REMINDER_DAYS || 
 const VIP_EXPIRY_REMINDER_MS = VIP_EXPIRY_REMINDER_DAYS * 24 * 60 * 60 * 1000;
 const AI_CHANNEL_CATEGORY_ID = process.env.AI_CHANNEL_CATEGORY_ID || null;
 const AI_TOKEN_STORE_PATH = process.env.AI_TOKEN_STORE_PATH || path.join(__dirname, 'ai-token-store.json');
+const AI_CONVERSATION_STORE_PATH = process.env.AI_CONVERSATION_STORE_PATH || path.join(__dirname, 'ai-conversation-store.json');
 const VIP_STATUS_STORE_PATH = process.env.VIP_STATUS_STORE_PATH || path.join(__dirname, 'vip-status-store.json');
 const AI_BUY_TOKENS_URL = process.env.AI_BUY_TOKENS_URL || 'https://www.veloo.org/vip.html#ai-tokens';
 const AI_STARTING_TOKENS = Number(process.env.AI_STARTING_TOKENS || 0);
-const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-5.4-mini';
+const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-5';
 const OPENAI_MAX_OUTPUT_TOKENS = Number(process.env.OPENAI_MAX_OUTPUT_TOKENS || 900);
 const AI_MIN_OUTPUT_TOKENS = Number(process.env.AI_MIN_OUTPUT_TOKENS || 32);
 const AI_TOKEN_SAFETY_BUFFER = Number(process.env.AI_TOKEN_SAFETY_BUFFER || 16);
+const AI_DISPLAY_CREDIT_UNIT = Number(process.env.AI_DISPLAY_CREDIT_UNIT || 10000);
+const WEBSITE_AI_MAX_HISTORY_MESSAGES = Number(process.env.WEBSITE_AI_MAX_HISTORY_MESSAGES || 12);
+const WEBSITE_AI_MAX_CONVERSATIONS = Number(process.env.WEBSITE_AI_MAX_CONVERSATIONS || 40);
 const BOT_SYNC_SECRET = process.env.BOT_SYNC_SECRET || null;
 const BOT_HTTP_PORT = Number(process.env.PORT || process.env.BOT_HTTP_PORT || 3000);
 const MODERATOR_ROLE_ID = process.env.MODERATOR_ROLE_ID || null;
@@ -118,14 +122,118 @@ const TRUSTED_SELLER_ROLE_NAME = process.env.TRUSTED_SELLER_ROLE_NAME || '𝐓�
 const TRUSTED_SELLER_MIN_SALES = Number(process.env.TRUSTED_SELLER_MIN_SALES || 5);
 const REVIEW_TRUSTED_MIN_COUNT = Number(process.env.REVIEW_TRUSTED_MIN_COUNT || 10);
 const REVIEW_TRUSTED_MIN_AVERAGE = Number(process.env.REVIEW_TRUSTED_MIN_AVERAGE || 4);
+const BRAND_VERIFY_PANEL_CHANNEL_ID = process.env.BRAND_VERIFY_PANEL_CHANNEL_ID || '1506366012625522839';
+const BRAND_VERIFY_REVIEW_CHANNEL_ID = process.env.BRAND_VERIFY_REVIEW_CHANNEL_ID || '1506366186240217128';
+const BRAND_VERIFIED_ROLE_ID = process.env.BRAND_VERIFIED_ROLE_ID || '1506367168537821255';
+const BRAND_INTEREST_ROLE_ID = process.env.BRAND_INTEREST_ROLE_ID || '1506369244580020355';
+const BRAND_ACCESS_CHANNEL_IDS = (process.env.BRAND_ACCESS_CHANNEL_IDS ||
+    '1506366373591515308,1506366611169218612,1506366785635614951,1506366661077368963')
+    .split(',')
+    .map(channelId => channelId.trim())
+    .filter(Boolean);
+const BRAND_COOPERATION_CHANNEL_ID = process.env.BRAND_COOPERATION_CHANNEL_ID || '1506366661077368963';
+const VINTED_SCOPE_MESSAGE =
+    'Ich beantworte nur Fragen zu Vinted, Resell, Listings, Preisen, Verkaufstaktiken, Fotos, Bundles, Buyer-DMs, Marketing oder Brand-Aufbau.';
+const VINTED_SCOPE_KEYWORDS = [
+    'vinted', 'resell', 'reseller', 'secondhand', 'second hand', 'preloved', 'kleidung', 'fashion', 'mode',
+    'streetwear', 'vintage', 'y2k', 'piece', 'artikel', 'produkt', 'listing', 'titel', 'beschreibung',
+    'description', 'preis', 'price', 'pricing', 'verkauf', 'verkaufen', 'sale', 'sales', 'sell', 'sellen',
+    'buyer', 'kunde', 'kunden', 'dm', 'nachricht', 'message', 'angebot', 'offer', 'verhandlung', 'rabatt',
+    'bundle', 'bundles', 'foto', 'photo', 'photos', 'bilder', 'keywords', 'keyword', 'hashtag', 'upload',
+    'algorithmus', 'sichtbarkeit', 'marketing', 'content', 'creator', 'profil', 'bewertung', 'review',
+    'versand', 'shipping', 'paket', 'zustand', 'condition', 'groesse', 'size', 'fit', 'marke', 'brand',
+    'legit', 'authentic', 'sourcing', 'thrift', 'ankauf', 'drops', 'price drop', 'preisdrop', 'wardrobe',
+    'closet', 'hoodie', 'jacke', 'hose', 'shirt', 'schuhe', 'sneaker', 'brandaufbau', 'brand aufbau',
+    'brandbuilding', 'branding', 'markenaufbau', 'marke aufbauen', 'brand owner', 'founder', 'launch',
+    'drop launch', 'kollektion', 'collection', 'target audience', 'zielgruppe', 'identity', 'positioning',
+    'positionierung', 'logo', 'packaging', 'shopify', 'shop', 'website', 'instagram', 'tiktok', 'social media',
+    'reels', 'ugc', 'community', 'cooperation', 'collab', 'collaboration', 'kooperation', 'supplier',
+    'manufacturer', 'produzent', 'hersteller', 'samples', 'sampling', 'margin', 'marge', 'moodboard'
+];
+const AI_MODEL_PRESETS = {
+    'gpt-5.5': {
+        id: 'gpt-5.5',
+        label: 'GPT-5.5',
+        minCredits: 8
+    },
+    'gpt-5.4': {
+        id: 'gpt-5.4',
+        label: 'GPT-5.4',
+        minCredits: 6
+    },
+    'gpt-5.3': {
+        id: 'gpt-5.3',
+        label: 'GPT-5.3',
+        minCredits: 5
+    },
+    'gpt-5.1': {
+        id: 'gpt-5.1',
+        label: 'GPT-5.1',
+        minCredits: 4
+    },
+    'gpt-5': {
+        id: 'gpt-5',
+        label: 'GPT-5',
+        minCredits: 3
+    },
+    'gpt-4o': {
+        id: 'gpt-4o',
+        label: 'GPT-4o',
+        minCredits: 2
+    },
+    'gpt-4o-mini': {
+        id: 'gpt-4o-mini',
+        label: 'GPT-4o Mini',
+        minCredits: 1
+    }
+};
 const OPENAI_INSTRUCTIONS = [
     'Du bist die VELOO&YESTERA AI im Discord.',
-    'Dein Fokus ist Vinted: bessere Listings, Titel, Beschreibungen, Preisideen, Fotos, Produktpositionierung, Bundle-Strategien, Verhandlung, Buyer-Messages, Marketing-Taktiken, Content-Ideen und Schritt-fuer-Schritt Tutorials fuer Vintage, Resell und Creator.',
-    'Wenn eine Frage nicht zu Vinted, Resell, Marketing, Verkauf, Content, Branding oder Community-Aufbau passt, leite freundlich zurueck auf diese Themen.',
-    'Gib klare, praktische Antworten mit konkreten Beispielen. Wenn sinnvoll, erstelle fertige Vinted-Titel, Beschreibungen, Preisanker, DM-Vorlagen, Upload-Plaene oder Checklisten.',
+    'Beantworte ausschliesslich Fragen, die direkt zu Vinted, Vintage, Resell, Listings, Preisen, Fotos, Verkaufstaktiken, Buyer-DMs, Bundles, Marketing, Branding, Brand-Aufbau, Launch-Planung, Social Media, Drops, Packaging oder Community-Aufbau fuer Seller und junge Brands passen.',
+    'Wenn eine Frage nicht in diesen Bereich passt, antworte nur kurz, dass du nur bei Vinted-, Resell- und Brand-Aufbau-Themen helfen kannst, und bitte um eine passende Frage.',
+    'Hilf neuen Leuten und Brand Ownern besonders konkret: frage nach Zielgruppe, Produkt, Budget, Preisziel, Content-Kanal, Produktionsstand und naechstem Schritt, wenn Informationen fehlen.',
+    'Gib klare, praktische Antworten mit konkreten Beispielen. Wenn sinnvoll, erstelle fertige Vinted-Titel, Beschreibungen, Preisanker, DM-Vorlagen, Upload-Plaene, Drop-Kalender, Brand-Positionierungen, Content-Ideen oder Checklisten.',
     'Keine Scam-Taktiken, keine gefaelschten Markenangaben, keine Umgehung von Plattformregeln, keine Garantien fuer Umsatz. Bleib ehrlich, hilfreich und umsetzbar.',
     'Erwaehne oeffentlich nie den Anbieter oder interne API-Details. Sprich nur von AI.'
 ].join(' ');
+
+function normalizeVintedScopeText(value) {
+    return String(value || '')
+        .toLowerCase()
+        .replace(/\u00df/g, 'ss')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9\s-]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+function isVintedScopedQuestion(question) {
+    const normalized = normalizeVintedScopeText(question);
+    if (!normalized) {
+        return false;
+    }
+
+    return VINTED_SCOPE_KEYWORDS.some(keyword => normalized.includes(keyword));
+}
+
+function normalizeAiModel(model) {
+    const modelId = String(model || '').trim();
+    if (AI_MODEL_PRESETS[modelId]) {
+        return modelId;
+    }
+
+    return OPENAI_MODEL;
+}
+
+function getAiModelPreset(model) {
+    return AI_MODEL_PRESETS[model] || AI_MODEL_PRESETS[normalizeAiModel(model)] || {
+        id: normalizeAiModel(model),
+        label: normalizeAiModel(model),
+        minCredits: 1
+    };
+}
+
 const OWNER_ROLE_ID = process.env.OWNER_ROLE_ID || null;
 const OWNER_ROLE_NAME = process.env.OWNER_ROLE_NAME || '𝘖𝘸𝘯𝘦𝘳';
 const CONTENT_CREATOR_ROLE_ID = process.env.CONTENT_CREATOR_ROLE_ID || null;
@@ -149,6 +257,8 @@ const VERIFICATION_PANEL_TITLE = '✅ VELOO&YESTERA VERIFICATION';
 const RULES_PANEL_TITLE = '📜 VELOO&YESTERA REGELN';
 const COOPERATION_PANEL_TITLE = '🤝 COOPERATIONS';
 const CREATOR_PANEL_TITLE = '🎥 CREATOR BEWERBUNG';
+const BRAND_VERIFY_PANEL_TITLE = 'BRAND VERIFICATION';
+const BRAND_COOPERATION_PANEL_TITLE = 'BRAND CONNECTION HUB';
 const DEFAULT_MODERATOR_ROLE_NAME = process.env.MODERATOR_ROLE_NAME || '𝘔𝘰𝘥𝘦𝘳𝘢𝘵𝘰𝘳';
 const DEFAULT_TRUSTED_SELLER_ROLE_NAME = process.env.TRUSTED_SELLER_ROLE_NAME || '𝐓𝐫𝐮𝐬𝐭𝐞𝐝𝐒𝐞𝐥𝐥𝐞𝐫';
 const DEFAULT_REACTION_ROLE_OPTIONS = [
@@ -181,6 +291,13 @@ const DEFAULT_REACTION_ROLE_OPTIONS = [
         roleName: '𝑩𝒓𝒂𝒏𝒅𝑴𝑬𝑴𝑩𝑬𝑹',
         label: 'BrandMEMBER',
         description: 'Fuer Brand Updates'
+    },
+    {
+        value: 'role_brand_owner',
+        roleName: 'BrandOWNER',
+        roleId: BRAND_INTEREST_ROLE_ID,
+        label: 'BrandOWNER',
+        description: 'Fuer Brand-Verifikation und Brand-Aufbau'
     }
 ];
 
@@ -195,6 +312,7 @@ const spamWindows = new Map();
 const newAccountWarnings = new Set();
 let mockupStore = loadMockupStore();
 let aiTokenStore = loadAiTokenStore();
+let aiConversationStore = loadAiConversationStore();
 let vipStatusStore = loadVipStatusStore();
 
 const BRAND_CHANNEL_CONFIGS = [
@@ -425,6 +543,8 @@ function createEmptyMockupStore() {
         announcedCommunityCookedMonths: [],
         communityCookedHistory: {},
         sellerReviews: {},
+        brandApplications: {},
+        brandConnections: {},
         notificationPreferences: {},
         languagePreferences: {},
         announcedAnalyticsWeeks: []
@@ -466,6 +586,14 @@ function loadMockupStore() {
             sellerReviews:
                 parsed.sellerReviews && typeof parsed.sellerReviews === 'object'
                     ? parsed.sellerReviews
+                    : {},
+            brandApplications:
+                parsed.brandApplications && typeof parsed.brandApplications === 'object'
+                    ? parsed.brandApplications
+                    : {},
+            brandConnections:
+                parsed.brandConnections && typeof parsed.brandConnections === 'object'
+                    ? parsed.brandConnections
                     : {},
             notificationPreferences:
                 parsed.notificationPreferences && typeof parsed.notificationPreferences === 'object'
@@ -1353,7 +1481,7 @@ function findRoleByIdOrName(guild, roleId, roleName) {
 function getReactionRoleConfigs() {
     return DEFAULT_REACTION_ROLE_OPTIONS.map(option => ({
         ...option,
-        roleId: process.env[`REACTION_ROLE_ID_${option.value.toUpperCase()}`] || null
+        roleId: process.env[`REACTION_ROLE_ID_${option.value.toUpperCase()}`] || option.roleId || null
     }));
 }
 
@@ -1625,7 +1753,7 @@ const LOCALIZED_PANELS = {
                     ['Visibility', 'VIP listings get highlighted and stand out more inside archive and brand areas.'],
                     ['Change Panels', 'VIP members can open a private channel and edit their own latest-goods panels.'],
                     ['Price Drops & Bundles', 'Discounted items and package deals are mirrored into their own sections.'],
-                    ['AI Tokens', 'VIP can include AI token bonuses depending on your website setup.']
+                    ['AI Credits', 'VIP can include AI credit bonuses depending on your website setup.']
                 ]
             },
             ai: {
@@ -1691,19 +1819,19 @@ const LOCALIZED_PANELS = {
         reviewButton: '⭐ Review abgeben',
         askAiButton: '✨ AI Chat oeffnen',
         verifyButton: '✅ Verifizieren',
-        buyTokens: 'Tokens kaufen',
+        buyTokens: 'Credits kaufen',
         website: 'Website',
         support: 'Support',
         panels: {
             guide: {
                 title: '🧭 VELOO&YESTERA Server Guide',
-                description: 'Starte hier: Verification, Rollen, Vinted Tools, VIP, AI Tokens und Support.',
+                description: 'Starte hier: Verification, Rollen, Vinted Tools, Brand-Aufbau, VIP, AI Credits und Support.',
                 fields: [
                     ['✅ 1. Erst verifizieren', 'Neue Member starten als Unverified. Nach der Verifizierung bekommst du Verified und kannst den Server nutzen.'],
                     ['🎭 2. Rollen waehlen', 'Waehle deine Interessen, damit du passende Bereiche, Drops und Community-Updates siehst.'],
                     ['🛒 3. Verkaufen & entdecken', 'Nutze latest-goods fuer Pieces, price-drops fuer Rabatte und bundles fuer Pakete.'],
                     ['👑 4. VIP', 'VIP gibt mehr Sichtbarkeit, goldene Highlights und Zugriff auf private change-panels.'],
-                    ['🤖 5. AI Tokens', 'Tokens werden nach AI-Nutzung berechnet: Frage plus Antwort. Es ist nicht 1 Frage = 1 Token.'],
+                    ['🤖 5. AI Credits', 'Credits werden nach AI-Nutzung berechnet: Frage plus Antwort. Es ist nicht 1 Frage = 1 Credit.'],
                     ['🛟 6. Hilfe', 'Oeffne ein Support-Ticket, wenn etwas nicht funktioniert oder du Staff-Hilfe brauchst.']
                 ]
             },
@@ -1723,7 +1851,7 @@ const LOCALIZED_PANELS = {
                     ['Sichtbarkeit', 'VIP Listings werden hervorgehoben und fallen in Archive- und Markenbereichen staerker auf.'],
                     ['Change Panels', 'VIP Member koennen private Channels oeffnen und eigene latest-goods Panels bearbeiten.'],
                     ['Price Drops & Bundles', 'Reduzierte Pieces und Pakete werden in eigene Bereiche gespiegelt.'],
-                    ['AI Tokens', 'VIP kann je nach Website-Setup Token-Boni enthalten.']
+                    ['AI Credits', 'VIP kann je nach Website-Setup Credit-Boni enthalten.']
                 ]
             },
             ai: {
@@ -2124,7 +2252,7 @@ function buildServerGuidePanel() {
     const embed = buildPanelEmbed({
         title: SERVER_GUIDE_PANEL_TITLE,
         description:
-            'Willkommen bei VELOO&YESTERA. Dieses Panel erklaert dir den Server, die wichtigsten Wege und wie AI Tokens funktionieren.',
+            'Willkommen bei VELOO&YESTERA. Dieses Panel erklaert dir den Server, die wichtigsten Wege, Brand-Verifikation und wie AI Credits funktionieren.',
         color: '#d9c39a',
         fields: [
             {
@@ -2163,9 +2291,9 @@ function buildServerGuidePanel() {
                 inline: false
             },
             {
-                name: '✨ 6. AI Tokens richtig erklaert',
+                name: '✨ 6. AI Credits & Brand-Aufbau',
                 value:
-                    `AI nutzt du ueber ${getChannelMention(AI_PANEL_CHANNEL_ID, 'Ask AI')}. Tokens sind kein "1 Frage = 1 Token" System. Abgerechnet wird nach echter AI-Nutzung: Frage plus Antwort. Wenn eine Antwort z.B. 550 AI Tokens verbraucht, werden 550 Tokens abgezogen. Kaufen kannst du sie hier: ${AI_BUY_TOKENS_URL}`,
+                    `AI nutzt du ueber ${getChannelMention(AI_PANEL_CHANNEL_ID, 'Ask AI')}. Credits sind kein "1 Frage = 1 Credit" System. Intern wird nach echter AI-Nutzung gerechnet: Frage plus Antwort. Die AI hilft auch bei Brand-Aufbau, Launch, Social Media und Drops. Brand-Verifikation: ${getChannelMention(BRAND_VERIFY_PANEL_CHANNEL_ID, 'Brand Verification')}. Kaufen kannst du Credits hier: ${AI_BUY_TOKENS_URL}`,
                 inline: false
             },
             {
@@ -2313,9 +2441,9 @@ function buildVipTutorialPanel() {
                 inline: false
             },
             {
-                name: '🤖 AI Tokens',
+                name: '🤖 AI Credits',
                 value:
-                    `AI Tokens sind Guthaben fuer Fragen rund um Vinted, Marketing, Taktiken und Tutorials. Kaufen und verwalten kannst du sie ueber ${AI_BUY_TOKENS_URL}`,
+                    `AI Credits sind Guthaben fuer Fragen rund um Vinted, Brand-Aufbau, Marketing, Taktiken und Tutorials. Kaufen und verwalten kannst du sie ueber ${AI_BUY_TOKENS_URL}`,
                 inline: false
             },
             {
@@ -2334,7 +2462,7 @@ function buildVipTutorialPanel() {
             .setStyle(ButtonStyle.Link)
             .setURL(`${WEBSITE_URL}/vip.html`),
         new ButtonBuilder()
-            .setLabel('AI Tokens')
+            .setLabel('AI Credits')
             .setStyle(ButtonStyle.Link)
             .setURL(AI_BUY_TOKENS_URL),
         new ButtonBuilder()
@@ -2759,15 +2887,15 @@ function buildAiExplainerPanel() {
                 inline: false
             },
             {
-                name: '\uD83D\uDC8E Was AI Tokens machen',
+                name: '\uD83D\uDC8E Was AI Credits machen',
                 value:
-                    'AI Tokens sind dein Guthaben fuer die AI. Tokens werden benutzt, wenn die AI Text liest, versteht und eine Antwort schreibt. Kurze Fragen mit kurzen Antworten verbrauchen wenig. Lange Fragen, viele Details und lange Tutorials verbrauchen mehr.',
+                    'AI Credits sind dein cleaner Guthaben-Stand fuer die AI. Intern wird die genaue AI-Nutzung weitergerechnet, aber im Panel siehst du keine riesigen Zahlen. Kurze Fragen verbrauchen wenig, lange Tutorials oder Uploads mehr.',
                 inline: false
             },
             {
                 name: '\uD83E\uDDFE Wie abgerechnet wird',
                 value:
-                    'Es ist nicht "1 Frage = 1 Token". Abgerechnet wird nach echter Nutzung: deine Frage plus die Antwort der AI. Wenn eine Antwort z.B. 550 AI Tokens braucht, werden 550 abgezogen. Wenn die AI nicht antworten kann, werden keine Tokens abgezogen.',
+                    'Es ist nicht "1 Frage = 1 Credit". Abgerechnet wird nach echter Nutzung: deine Frage plus die Antwort der AI. Wenn die AI nicht antworten kann, werden keine Credits abgezogen.',
                 inline: false
             },
             {
@@ -2792,7 +2920,7 @@ function buildAiExplainerPanel() {
             .setStyle(ButtonStyle.Link)
             .setURL(aiPanelUrl),
         new ButtonBuilder()
-            .setLabel('\uD83D\uDED2 Tokens kaufen')
+            .setLabel('\uD83D\uDED2 Credits kaufen')
             .setStyle(ButtonStyle.Link)
             .setURL(AI_BUY_TOKENS_URL),
         new ButtonBuilder()
@@ -4857,6 +4985,26 @@ function saveAiTokenStore() {
     fs.writeFileSync(AI_TOKEN_STORE_PATH, JSON.stringify(aiTokenStore, null, 2));
 }
 
+function loadAiConversationStore() {
+    try {
+        if (!fs.existsSync(AI_CONVERSATION_STORE_PATH)) {
+            return { byEmail: {} };
+        }
+
+        const parsed = JSON.parse(fs.readFileSync(AI_CONVERSATION_STORE_PATH, 'utf8'));
+        return {
+            byEmail: parsed.byEmail || {}
+        };
+    } catch (error) {
+        console.error('AI conversation store could not be loaded:', error.message);
+        return { byEmail: {} };
+    }
+}
+
+function saveAiConversationStore() {
+    fs.writeFileSync(AI_CONVERSATION_STORE_PATH, JSON.stringify(aiConversationStore, null, 2));
+}
+
 function getAiUserRecord(userId) {
     if (!aiTokenStore.users[userId]) {
         aiTokenStore.users[userId] = {
@@ -4873,6 +5021,19 @@ function getAiUserRecord(userId) {
     }
 
     return aiTokenStore.users[userId];
+}
+
+function formatAiCredits(value) {
+    const rawAmount = Math.max(0, Number(value || 0));
+    const credits = rawAmount / Math.max(1, AI_DISPLAY_CREDIT_UNIT);
+    if (rawAmount > 0 && credits < 0.1) {
+        return '0,1';
+    }
+
+    return new Intl.NumberFormat('de-DE', {
+        minimumFractionDigits: credits > 0 && credits < 1 ? 1 : 0,
+        maximumFractionDigits: credits >= 10 ? 0 : 1
+    }).format(credits);
 }
 
 function addAiTokens(userId, amount, reason = 'manual', options = {}) {
@@ -4942,7 +5103,10 @@ function spendAiTokens(userId, amount, usage = {}) {
         inputTokens: Number(usage.inputTokens || 0),
         outputTokens: Number(usage.outputTokens || 0),
         model: usage.model || OPENAI_MODEL,
-        reason: usage.reason || 'openai_usage',
+        reason: usage.reason || 'ai_usage',
+        source: usage.source || null,
+        email: usage.email || null,
+        conversationId: usage.conversationId || null,
         createdAt: new Date().toISOString()
     });
     saveAiTokenStore();
@@ -4965,10 +5129,11 @@ function estimateTextTokens(text) {
     return Math.max(1, Math.ceil(cleanText.length / 4));
 }
 
-function estimateAiInputTokens(question, username) {
+function estimateAiInputTokens(question, username, extraContext = '') {
     return (
         estimateTextTokens(OPENAI_INSTRUCTIONS) +
         estimateTextTokens(`${username}: ${question}`) +
+        estimateTextTokens(extraContext) +
         12
     );
 }
@@ -5001,9 +5166,9 @@ function getOpenAiUsage(payload) {
     };
 }
 
-function getAiTokenBudget(question, username, balance) {
+function getAiTokenBudget(question, username, balance, extraContext = '') {
     const availableTokens = Math.max(0, Math.floor(Number(balance || 0)));
-    const estimatedInputTokens = estimateAiInputTokens(question, username);
+    const estimatedInputTokens = estimateAiInputTokens(question, username, extraContext);
     const minimumRequired = estimatedInputTokens + AI_MIN_OUTPUT_TOKENS + AI_TOKEN_SAFETY_BUFFER;
     const maxOutputTokens = Math.min(
         OPENAI_MAX_OUTPUT_TOKENS,
@@ -5016,6 +5181,218 @@ function getAiTokenBudget(question, username, balance) {
         minimumRequired,
         maxOutputTokens: Math.floor(maxOutputTokens)
     };
+}
+
+function normalizeAccountEmail(email) {
+    return String(email || '').trim().toLowerCase();
+}
+
+function isValidAccountEmail(email) {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email || ''));
+}
+
+function sanitizeAiChatText(value, maxLength = 6000) {
+    return String(value || '')
+        .replace(/\s+\n/g, '\n')
+        .replace(/\n{4,}/g, '\n\n\n')
+        .trim()
+        .slice(0, maxLength);
+}
+
+function normalizeAiAttachments(attachments) {
+    if (!Array.isArray(attachments)) {
+        return [];
+    }
+
+    return attachments.slice(0, 3).map(file => {
+        const kind = file?.kind === 'image' ? 'image' : file?.kind === 'text' ? 'text' : 'meta';
+        return {
+            name: sanitizeAiChatText(file?.name || 'Datei', 120),
+            type: sanitizeAiChatText(file?.type || '', 80),
+            size: Math.max(0, Number(file?.size || 0)),
+            kind,
+            text: sanitizeAiChatText(file?.text || '', 6000),
+            dataUrl: kind === 'image' ? String(file?.dataUrl || '').slice(0, 3000000) : '',
+            warning: sanitizeAiChatText(file?.warning || '', 240)
+        };
+    });
+}
+
+function buildAiAttachmentContext(attachments) {
+    const normalizedAttachments = normalizeAiAttachments(attachments);
+    if (!normalizedAttachments.length) {
+        return '';
+    }
+
+    return normalizedAttachments.map((file, index) => {
+        const lines = [
+            `Datei ${index + 1}: ${file.name}`,
+            `Typ: ${file.type || file.kind}`,
+            `Groesse: ${file.size} Bytes`
+        ];
+
+        if (file.text) {
+            lines.push(`Inhalt/Snippet:\n${file.text}`);
+        }
+
+        if (file.warning) {
+            lines.push(`Hinweis: ${file.warning}`);
+        }
+
+        if (file.kind === 'image' && file.dataUrl) {
+            lines.push('Bild wurde als Upload mitgesendet. Analysiere es nur, wenn das gewaehlte Model Bildinput unterstuetzt.');
+        }
+
+        return lines.join('\n');
+    }).join('\n\n');
+}
+
+function createAiConversationId() {
+    return `conv_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 9)}`;
+}
+
+function createAiConversationTitle(question) {
+    const cleanQuestion = sanitizeAiChatText(question, 80);
+    if (!cleanQuestion) {
+        return 'Vinted Chat';
+    }
+
+    return cleanQuestion.length > 54 ? `${cleanQuestion.slice(0, 51)}...` : cleanQuestion;
+}
+
+function getAiConversationBucket(email) {
+    const emailKey = normalizeAccountEmail(email);
+    if (!aiConversationStore.byEmail[emailKey]) {
+        aiConversationStore.byEmail[emailKey] = {
+            email: emailKey,
+            conversations: {},
+            updatedAt: new Date().toISOString()
+        };
+    }
+
+    return aiConversationStore.byEmail[emailKey];
+}
+
+function listAiConversationsForEmail(email) {
+    const emailKey = normalizeAccountEmail(email);
+    const bucket = aiConversationStore.byEmail[emailKey];
+    if (!bucket) {
+        return [];
+    }
+
+    return Object.values(bucket.conversations || {})
+        .sort((a, b) => new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0))
+        .slice(0, WEBSITE_AI_MAX_CONVERSATIONS)
+        .map(conversation => ({
+            id: conversation.id,
+            title: conversation.title || 'Vinted Chat',
+            createdAt: conversation.createdAt,
+            updatedAt: conversation.updatedAt,
+            messageCount: Array.isArray(conversation.messages) ? conversation.messages.length : 0
+        }));
+}
+
+function getOrCreateAiConversation(email, conversationId, discordUserId, firstQuestion) {
+    const bucket = getAiConversationBucket(email);
+    const requestedId = String(conversationId || '').trim();
+    const existing = requestedId && bucket.conversations?.[requestedId]
+        ? bucket.conversations[requestedId]
+        : null;
+
+    if (existing) {
+        existing.discordUserIds = Array.from(new Set([...(existing.discordUserIds || []), discordUserId].filter(Boolean)));
+        return existing;
+    }
+
+    const now = new Date().toISOString();
+    const id = createAiConversationId();
+    const conversation = {
+        id,
+        email: normalizeAccountEmail(email),
+        title: createAiConversationTitle(firstQuestion),
+        discordUserIds: [discordUserId].filter(Boolean),
+        messages: [],
+        createdAt: now,
+        updatedAt: now
+    };
+
+    bucket.conversations[id] = conversation;
+    bucket.updatedAt = now;
+
+    const sorted = Object.values(bucket.conversations)
+        .sort((a, b) => new Date(b.updatedAt || 0) - new Date(a.updatedAt || 0));
+
+    if (sorted.length > WEBSITE_AI_MAX_CONVERSATIONS) {
+        sorted.slice(WEBSITE_AI_MAX_CONVERSATIONS).forEach(oldConversation => {
+            delete bucket.conversations[oldConversation.id];
+        });
+    }
+
+    saveAiConversationStore();
+    return conversation;
+}
+
+function getAiConversationById(email, conversationId) {
+    const emailKey = normalizeAccountEmail(email);
+    const id = String(conversationId || '').trim();
+    if (!emailKey || !id) {
+        return null;
+    }
+
+    return aiConversationStore.byEmail[emailKey]?.conversations?.[id] || null;
+}
+
+function getAiConversationForResponse(conversation) {
+    return {
+        id: conversation.id,
+        title: conversation.title || 'Vinted Chat',
+        createdAt: conversation.createdAt,
+        updatedAt: conversation.updatedAt,
+        messages: Array.isArray(conversation.messages)
+            ? conversation.messages.slice(-60).map(message => ({
+                role: message.role,
+                content: message.content,
+                createdAt: message.createdAt,
+                usage: message.usage || null
+            }))
+            : []
+    };
+}
+
+function appendAiConversationMessage(conversation, message) {
+    const nextMessage = {
+        role: message.role,
+        content: sanitizeAiChatText(message.content, message.role === 'assistant' ? 12000 : 6000),
+        usage: message.usage || null,
+        createdAt: new Date().toISOString()
+    };
+
+    conversation.messages = Array.isArray(conversation.messages) ? conversation.messages : [];
+    conversation.messages.push(nextMessage);
+    conversation.messages = conversation.messages.slice(-80);
+    conversation.updatedAt = nextMessage.createdAt;
+
+    const bucket = getAiConversationBucket(conversation.email);
+    bucket.conversations[conversation.id] = conversation;
+    bucket.updatedAt = conversation.updatedAt;
+    saveAiConversationStore();
+}
+
+function buildAiConversationContext(conversation) {
+    const messages = Array.isArray(conversation.messages)
+        ? conversation.messages.slice(-WEBSITE_AI_MAX_HISTORY_MESSAGES)
+        : [];
+
+    if (!messages.length) {
+        return '';
+    }
+
+    return messages
+        .map(message => {
+            const speaker = message.role === 'assistant' ? 'AI' : 'User';
+            return `${speaker}: ${sanitizeAiChatText(message.content, 1200)}`;
+        })
+        .join('\n\n');
 }
 
 function buildVerificationPanel() {
@@ -5135,8 +5512,8 @@ function buildAiMainPanel() {
                 inline: false
             },
             {
-                name: '🪙 AI Tokens',
-                value: 'Abgerechnet wird nach echter AI-Nutzung: Frage + Antwort. Tokens bekommst du im VIP-Abo oder ueber Token-Packs.',
+                name: '🪙 AI Credits',
+                value: 'Abgerechnet wird nach echter AI-Nutzung: Frage + Antwort. Credits bekommst du im VIP-Abo oder ueber Credit-Packs.',
                 inline: false
             }
         ],
@@ -5161,8 +5538,8 @@ function buildAiChatPanel(userId) {
         color: '#6a7dff',
         fields: [
             {
-                name: '🪙 Deine Tokens',
-                value: `${Number(record.balance || 0)} verfuegbar`,
+                name: '🪙 Deine Credits',
+                value: `${formatAiCredits(record.balance)} verfuegbar`,
                 inline: true
             },
             {
@@ -5171,7 +5548,7 @@ function buildAiChatPanel(userId) {
                 inline: true
             },
             {
-                name: '🛒 Tokens kaufen',
+                name: '🛒 Credits kaufen',
                 value: AI_BUY_TOKENS_URL,
                 inline: false
             }
@@ -5191,11 +5568,11 @@ function buildAiChatPanel(userId) {
 
     const refreshButton = new ButtonBuilder()
         .setCustomId('ai_refresh_balance')
-        .setLabel('🔄 Tokens aktualisieren')
+        .setLabel('🔄 Credits aktualisieren')
         .setStyle(ButtonStyle.Secondary);
 
     const buyButton = new ButtonBuilder()
-        .setLabel('🛒 Tokens kaufen')
+        .setLabel('🛒 Credits kaufen')
         .setStyle(ButtonStyle.Link)
         .setURL(AI_BUY_TOKENS_URL);
 
@@ -5314,12 +5691,30 @@ function extractOpenAiText(payload) {
     return textParts.join('\n').trim();
 }
 
-async function askOpenAi(question, username, maxOutputTokens) {
+async function askOpenAi(question, username, maxOutputTokens, options = {}) {
     if (!process.env.OPENAI_API_KEY) {
         throw new Error('OPENAI_API_KEY fehlt in Railway.');
     }
 
     const outputLimit = Math.max(16, Math.min(OPENAI_MAX_OUTPUT_TOKENS, Math.floor(Number(maxOutputTokens || OPENAI_MAX_OUTPUT_TOKENS))));
+    const inputText = sanitizeAiChatText(options.inputText || `${username}: ${question}`, 12000);
+    const selectedModel = normalizeAiModel(options.model || OPENAI_MODEL);
+    const inputContent = [
+        {
+            type: 'input_text',
+            text: inputText
+        }
+    ];
+
+    normalizeAiAttachments(options.attachments).forEach(file => {
+        if (file.kind === 'image' && file.dataUrl) {
+            inputContent.push({
+                type: 'input_image',
+                image_url: file.dataUrl
+            });
+        }
+    });
+
     const response = await fetch('https://api.openai.com/v1/responses', {
         method: 'POST',
         headers: {
@@ -5327,18 +5722,13 @@ async function askOpenAi(question, username, maxOutputTokens) {
             'content-type': 'application/json'
         },
         body: JSON.stringify({
-            model: OPENAI_MODEL,
+            model: selectedModel,
             max_output_tokens: outputLimit,
             instructions: OPENAI_INSTRUCTIONS,
             input: [
                 {
                     role: 'user',
-                    content: [
-                        {
-                            type: 'input_text',
-                            text: `${username}: ${question}`
-                        }
-                    ]
+                    content: inputContent
                 }
             ]
         })
@@ -5352,7 +5742,7 @@ async function askOpenAi(question, username, maxOutputTokens) {
     return {
         answer: extractOpenAiText(payload) || 'Ich konnte gerade keine Antwort erzeugen.',
         usage: getOpenAiUsage(payload),
-        model: payload.model || OPENAI_MODEL
+        model: payload.model || selectedModel
     };
 }
 
@@ -5366,6 +5756,152 @@ async function handleOpenAiChatButton(interaction) {
 
     await upsertAiChatPanel(channel, interaction.user.id);
     return interaction.editReply(`Dein privater AI-Chat ist bereit: <#${channel.id}>`);
+}
+
+async function handleWebsiteAiChat(payload) {
+    const discordUserId = String(payload.discordUserId || '').trim();
+    const email = normalizeAccountEmail(payload.email);
+    const username = sanitizeAiChatText(payload.username || 'Website User', 80);
+    const question = sanitizeAiChatText(payload.question, 4000);
+    const selectedModel = normalizeAiModel(payload.model);
+    const modelPreset = getAiModelPreset(selectedModel);
+    const attachments = normalizeAiAttachments(payload.attachments);
+    const attachmentContext = buildAiAttachmentContext(attachments);
+
+    if (!/^\d{16,25}$/.test(discordUserId)) {
+        return { status: 400, body: { error: 'invalid_user' } };
+    }
+
+    if (!isValidAccountEmail(email)) {
+        return { status: 400, body: { error: 'invalid_email' } };
+    }
+
+    if (!question) {
+        return { status: 400, body: { error: 'missing_question' } };
+    }
+
+    if (!isVintedScopedQuestion([question, attachmentContext].join('\n'))) {
+        return {
+            status: 422,
+            body: {
+                error: 'out_of_scope',
+                message: VINTED_SCOPE_MESSAGE
+            }
+        };
+    }
+
+    const record = getAiUserRecord(discordUserId);
+    if (Number(record.balance || 0) < modelPreset.minCredits) {
+        return {
+            status: 402,
+            body: {
+                error: 'more_credits_required',
+                message: `Diese Aufgabe braucht mindestens ${formatAiCredits(modelPreset.minCredits)} Credits mit ${modelPreset.label}. Bitte lade Credits auf oder waehle ein kleineres Model.`,
+                buyUrl: AI_BUY_TOKENS_URL,
+                model: modelPreset,
+                tokens: {
+                    balance: Number(record.balance || 0),
+                    minimumRequired: modelPreset.minCredits
+                },
+                conversations: listAiConversationsForEmail(email)
+            }
+        };
+    }
+
+    const conversation = getOrCreateAiConversation(email, payload.conversationId, discordUserId, question);
+    const historyContext = buildAiConversationContext(conversation);
+    const promptForAi = [
+        historyContext
+            ? `Bisherige Konversation fuer Kontext:\n${historyContext}`
+            : '',
+        attachmentContext
+            ? `Uploads und Dateikontext:\n${attachmentContext}`
+            : '',
+        `Neue Frage von ${username}: ${question}`
+    ].filter(Boolean).join('\n\n');
+    const budget = getAiTokenBudget(promptForAi, username, record.balance);
+
+    if (budget.maxOutputTokens < AI_MIN_OUTPUT_TOKENS) {
+        return {
+            status: 402,
+            body: {
+                error: 'more_credits_required',
+                message: `Diese Aufgabe kostet mehr Credits, um sie abzuschliessen. Du brauchst ungefaehr ${formatAiCredits(budget.minimumRequired)} Credits Startguthaben.`,
+                buyUrl: AI_BUY_TOKENS_URL,
+                tokens: {
+                    balance: Number(record.balance || 0),
+                    minimumRequired: budget.minimumRequired
+                },
+                conversations: listAiConversationsForEmail(email),
+                conversation: getAiConversationForResponse(conversation)
+            }
+        };
+    }
+
+    const result = await askOpenAi(question, username, budget.maxOutputTokens, {
+        inputText: promptForAi,
+        model: selectedModel,
+        attachments
+    });
+    const fallbackUsage = {
+        inputTokens: budget.estimatedInputTokens,
+        outputTokens: estimateTextTokens(result.answer),
+        totalTokens: budget.estimatedInputTokens + estimateTextTokens(result.answer)
+    };
+    const usage = result.usage.totalTokens > 0 ? result.usage : fallbackUsage;
+
+    if (!spendAiTokens(discordUserId, usage.totalTokens, {
+        inputTokens: usage.inputTokens,
+        outputTokens: usage.outputTokens,
+        model: result.model,
+        reason: 'website_ai_response_usage',
+        source: 'website',
+        email,
+        conversationId: conversation.id
+    })) {
+        spendAiTokens(discordUserId, getAiUserRecord(discordUserId).balance, {
+            inputTokens: usage.inputTokens,
+            outputTokens: usage.outputTokens,
+            model: result.model,
+            reason: 'website_ai_response_usage_partial',
+            source: 'website',
+            email,
+            conversationId: conversation.id
+        });
+    }
+
+    appendAiConversationMessage(conversation, {
+        role: 'user',
+        content: question
+    });
+    appendAiConversationMessage(conversation, {
+        role: 'assistant',
+        content: result.answer,
+        usage: {
+            amount: usage.totalTokens,
+            inputTokens: usage.inputTokens,
+            outputTokens: usage.outputTokens,
+            model: result.model
+        }
+    });
+
+    const updatedRecord = getAiUserRecord(discordUserId);
+    return {
+        status: 200,
+        body: {
+            ok: true,
+            answer: result.answer,
+            usage,
+            model: result.model,
+            tokens: {
+                balance: Number(updatedRecord.balance || 0),
+                totalUsed: Number(updatedRecord.totalUsed || 0),
+                totalGranted: Number(updatedRecord.totalGranted || 0)
+            },
+            conversations: listAiConversationsForEmail(email),
+            conversation: getAiConversationForResponse(conversation)
+        }
+    };
 }
 
 function showAiListingGeneratorModal(interaction) {
@@ -5442,14 +5978,21 @@ async function handleAiQuestionSubmit(interaction, overrideQuestion = null) {
         });
     }
 
+    if (!isVintedScopedQuestion(question)) {
+        return replyToInteraction(interaction, {
+            content: VINTED_SCOPE_MESSAGE,
+            ephemeral: true
+        });
+    }
+
     const budget = getAiTokenBudget(question, interaction.user.username, record.balance);
 
     if (budget.maxOutputTokens < AI_MIN_OUTPUT_TOKENS) {
         return replyToInteraction(interaction, {
             content:
-                `Du hast nicht genug AI Tokens fuer diese Frage. ` +
-                `Du brauchst ungefaehr ${budget.minimumRequired} Tokens Startguthaben. ` +
-                `Aktuell: ${budget.availableTokens}. Tokens kaufen: ${AI_BUY_TOKENS_URL}`,
+                `Du hast nicht genug AI Credits fuer diese Frage. ` +
+                `Du brauchst ungefaehr ${formatAiCredits(budget.minimumRequired)} Credits Startguthaben. ` +
+                `Aktuell: ${formatAiCredits(budget.availableTokens)}. Credits kaufen: ${AI_BUY_TOKENS_URL}`,
             ephemeral: true
         });
     }
@@ -5469,7 +6012,7 @@ async function handleAiQuestionSubmit(interaction, overrideQuestion = null) {
             inputTokens: usage.inputTokens,
             outputTokens: usage.outputTokens,
             model: result.model,
-            reason: 'openai_response_usage'
+            reason: 'ai_response_usage'
         })) {
             console.error(
                 `AI token charge exceeded balance for ${interaction.user.id}: ` +
@@ -5479,7 +6022,7 @@ async function handleAiQuestionSubmit(interaction, overrideQuestion = null) {
                 inputTokens: usage.inputTokens,
                 outputTokens: usage.outputTokens,
                 model: result.model,
-                reason: 'openai_response_usage_partial'
+                reason: 'ai_response_usage_partial'
             });
         }
 
@@ -5496,7 +6039,7 @@ async function handleAiQuestionSubmit(interaction, overrideQuestion = null) {
                 {
                     name: '🪙 Abrechnung',
                     value:
-                        `${usage.totalTokens} AI Tokens abgezogen` +
+                        `${formatAiCredits(usage.totalTokens)} AI Credits abgezogen` +
                         (usage.inputTokens || usage.outputTokens
                             ? ` (${usage.inputTokens} Input / ${usage.outputTokens} Output)`
                             : ''),
@@ -5504,7 +6047,7 @@ async function handleAiQuestionSubmit(interaction, overrideQuestion = null) {
                 }
             )
             .setColor('#6a7dff')
-            .setFooter({ text: `Tokens uebrig: ${updatedRecord.balance}` })
+            .setFooter({ text: `Credits uebrig: ${formatAiCredits(updatedRecord.balance)}` })
             .setTimestamp();
 
         await interaction.editReply({ embeds: [embed] });
@@ -5750,7 +6293,7 @@ async function sendReactionRolePanelLegacy() {
             {
                 name: 'ROLLEN',
                 value:
-                    'Vintage, VintageResell, Mockups, Fits und BrandMEMBER stehen dir direkt zur Auswahl.',
+                    'Vintage, VintageResell, Mockups, Fits, BrandMEMBER und BrandOWNER stehen dir direkt zur Auswahl.',
                 inline: false
             },
             {
@@ -5785,7 +6328,7 @@ async function sendReactionRolePanel() {
         fields: [
             {
                 name: '🎯 ROLLEN',
-                value: 'Vintage, Resell, Mockups, Fits, BrandMEMBER',
+                value: 'Vintage, Resell, Mockups, Fits, BrandMEMBER, BrandOWNER',
                 inline: false
             },
             {
@@ -5801,6 +6344,723 @@ async function sendReactionRolePanel() {
         embeds: [embed],
         components: buildReactionRoleRows()
     }));
+}
+
+function extractFirstUrl(value) {
+    const match = String(value || '').match(/https?:\/\/[^\s<>()]+/i);
+    return match ? match[0] : '';
+}
+
+function compactPanelText(value, limit = 900) {
+    const text = String(value || '').trim();
+    return text.length > limit ? `${text.slice(0, limit - 3)}...` : text || 'n/a';
+}
+
+function buildBrandVerifyPanel() {
+    const embed = buildPanelEmbed({
+        title: BRAND_VERIFY_PANEL_TITLE,
+        description:
+            'Verify your brand before you enter the brand-owner area. Add at least one real link so the team can check that the brand exists.',
+        color: '#d9c39a',
+        fields: [
+            {
+                name: '1. What you need',
+                value: 'Brand name, one public link, your role, current stage and what you want to build.',
+                inline: false
+            },
+            {
+                name: '2. Review flow',
+                value: `Your request goes to ${getChannelMention(BRAND_VERIFY_REVIEW_CHANNEL_ID, 'the review channel')}. Staff can accept or decline it.`,
+                inline: false
+            },
+            {
+                name: '3. After approval',
+                value: 'You receive brand access and can use the private brand channels for ideas, drops, strategy and cooperation.',
+                inline: false
+            }
+        ],
+        footerText: 'VELOO&YESTERA // BRAND VERIFY'
+    });
+
+    const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+            .setCustomId('open_brand_verify')
+            .setLabel('Verify Brand')
+            .setStyle(ButtonStyle.Primary)
+    );
+
+    return { embeds: [embed], components: [row] };
+}
+
+async function sendBrandVerifyPanel() {
+    const channel = await client.channels.fetch(BRAND_VERIFY_PANEL_CHANNEL_ID).catch(() => null);
+    if (!channel) {
+        return;
+    }
+
+    await upsertPanelMessage(channel, BRAND_VERIFY_PANEL_TITLE, buildBrandVerifyPanel());
+}
+
+function showBrandVerifyModal(interaction) {
+    const modal = new ModalBuilder()
+        .setCustomId('brand_verify_modal')
+        .setTitle('Brand Verification');
+
+    modal.addComponents(
+        new ActionRowBuilder().addComponents(
+            new TextInputBuilder()
+                .setCustomId('brand_name')
+                .setLabel('Brand name')
+                .setPlaceholder('Example: VELOO Studios')
+                .setStyle(TextInputStyle.Short)
+                .setRequired(true)
+        ),
+        new ActionRowBuilder().addComponents(
+            new TextInputBuilder()
+                .setCustomId('brand_link')
+                .setLabel('Brand link')
+                .setPlaceholder('https://instagram.com/yourbrand or website')
+                .setStyle(TextInputStyle.Short)
+                .setRequired(true)
+        ),
+        new ActionRowBuilder().addComponents(
+            new TextInputBuilder()
+                .setCustomId('brand_role')
+                .setLabel('Your role')
+                .setPlaceholder('Founder, owner, designer, social media...')
+                .setStyle(TextInputStyle.Short)
+                .setRequired(true)
+        ),
+        new ActionRowBuilder().addComponents(
+            new TextInputBuilder()
+                .setCustomId('brand_stage')
+                .setLabel('Current stage')
+                .setPlaceholder('Idea, samples, first drop, active shop...')
+                .setStyle(TextInputStyle.Short)
+                .setRequired(true)
+        ),
+        new ActionRowBuilder().addComponents(
+            new TextInputBuilder()
+                .setCustomId('brand_goal')
+                .setLabel('What do you need help with?')
+                .setPlaceholder('Marketing, launch, collabs, feedback, Vinted strategy...')
+                .setStyle(TextInputStyle.Paragraph)
+                .setRequired(true)
+        )
+    );
+
+    return interaction.showModal(modal);
+}
+
+function buildBrandApplicationEmbed(application) {
+    const status = application.status || 'pending';
+    const color = status === 'accepted' ? '#4fb477' : status === 'declined' ? '#b95858' : '#d9c39a';
+    const statusText = status === 'accepted' ? 'Accepted' : status === 'declined' ? 'Declined' : 'Pending review';
+
+    return buildPanelEmbed({
+        title: `${BRAND_VERIFY_PANEL_TITLE} // ${application.brandName}`,
+        description: `${statusText}\nApplicant: <@${application.userId}>`,
+        color,
+        fields: [
+            { name: 'Brand link', value: compactPanelText(application.link, 500), inline: false },
+            { name: 'Role', value: compactPanelText(application.role, 500), inline: true },
+            { name: 'Stage', value: compactPanelText(application.stage, 500), inline: true },
+            { name: 'Goal', value: compactPanelText(application.goal, 900), inline: false },
+            application.reviewNote
+                ? { name: 'Review note', value: compactPanelText(application.reviewNote, 900), inline: false }
+                : null
+        ].filter(Boolean),
+        footerText: `Application ID: ${application.id}`
+    });
+}
+
+function buildBrandApplicationRow(applicationId, disabled = false) {
+    return new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+            .setCustomId(`brandapp_accept_${applicationId}`)
+            .setLabel('Accept')
+            .setStyle(ButtonStyle.Success)
+            .setDisabled(disabled),
+        new ButtonBuilder()
+            .setCustomId(`brandapp_decline_${applicationId}`)
+            .setLabel('Decline')
+            .setStyle(ButtonStyle.Danger)
+            .setDisabled(disabled)
+    );
+}
+
+async function handleBrandVerifySubmit(interaction) {
+    const brandName = interaction.fields.getTextInputValue('brand_name');
+    const link = interaction.fields.getTextInputValue('brand_link');
+    const url = extractFirstUrl(link);
+
+    if (!url) {
+        return replyToInteraction(interaction, {
+            content: 'Please add at least one valid link, for example Instagram, TikTok, website or shop.',
+            ephemeral: true
+        });
+    }
+
+    const applicationId = `brand_${Date.now().toString(36)}_${interaction.user.id.slice(-4)}`;
+    const application = {
+        id: applicationId,
+        userId: interaction.user.id,
+        username: interaction.user.username,
+        brandName: compactPanelText(brandName, 120),
+        link: compactPanelText(link, 500),
+        role: interaction.fields.getTextInputValue('brand_role'),
+        stage: interaction.fields.getTextInputValue('brand_stage'),
+        goal: interaction.fields.getTextInputValue('brand_goal'),
+        status: 'pending',
+        createdAt: new Date().toISOString()
+    };
+
+    mockupStore.brandApplications[applicationId] = application;
+    saveMockupStore();
+
+    const reviewChannel = await client.channels.fetch(BRAND_VERIFY_REVIEW_CHANNEL_ID).catch(() => null);
+    if (!reviewChannel?.send) {
+        return replyToInteraction(interaction, {
+            content: 'Brand request saved, but the review channel could not be reached.',
+            ephemeral: true
+        });
+    }
+
+    const reviewMessage = await reviewChannel.send({
+        embeds: [buildBrandApplicationEmbed(application)],
+        components: [buildBrandApplicationRow(applicationId)]
+    });
+    application.reviewMessageId = reviewMessage.id;
+    mockupStore.brandApplications[applicationId] = application;
+    saveMockupStore();
+
+    return replyToInteraction(interaction, {
+        content: 'Your brand verification was sent to the team. You will receive a DM after review.',
+        ephemeral: true
+    });
+}
+
+async function ensureBrandAccessPermissions(guild) {
+    const role = guild.roles.cache.get(BRAND_VERIFIED_ROLE_ID);
+    if (!role) {
+        return false;
+    }
+
+    await Promise.all(BRAND_ACCESS_CHANNEL_IDS.map(async (channelId) => {
+        const channel = await guild.channels.fetch(channelId).catch(() => null);
+        if (!channel?.permissionOverwrites) {
+            return;
+        }
+
+        await channel.permissionOverwrites.edit(role.id, {
+            ViewChannel: true,
+            SendMessages: true,
+            ReadMessageHistory: true
+        }).catch(() => null);
+    }));
+
+    return true;
+}
+
+async function grantBrandVerifiedAccess(guild, userId) {
+    const member = await guild.members.fetch(userId).catch(() => null);
+    const role = guild.roles.cache.get(BRAND_VERIFIED_ROLE_ID);
+    if (member && role) {
+        await member.roles.add(role).catch(() => null);
+    }
+
+    await ensureBrandAccessPermissions(guild);
+}
+
+async function updateBrandApplicationReviewMessage(application) {
+    const reviewChannel = await client.channels.fetch(BRAND_VERIFY_REVIEW_CHANNEL_ID).catch(() => null);
+    if (!reviewChannel || !application.reviewMessageId) {
+        return;
+    }
+
+    const message = await reviewChannel.messages.fetch(application.reviewMessageId).catch(() => null);
+    if (message) {
+        await message.edit({
+            embeds: [buildBrandApplicationEmbed(application)],
+            components: [buildBrandApplicationRow(application.id, true)]
+        }).catch(() => null);
+    }
+}
+
+async function handleBrandApplicationAccept(interaction, applicationId) {
+    if (!memberCanManageTickets(interaction.member)) {
+        return replyToInteraction(interaction, { content: 'Only staff can review brand requests.', ephemeral: true });
+    }
+
+    const application = mockupStore.brandApplications[applicationId];
+    if (!application) {
+        return replyToInteraction(interaction, { content: 'Brand request not found.', ephemeral: true });
+    }
+
+    application.status = 'accepted';
+    application.reviewedBy = interaction.user.id;
+    application.reviewedAt = new Date().toISOString();
+    mockupStore.brandApplications[applicationId] = application;
+    saveMockupStore();
+
+    await interaction.guild.roles.fetch().catch(() => null);
+    await grantBrandVerifiedAccess(interaction.guild, application.userId);
+    await updateBrandApplicationReviewMessage(application);
+
+    const user = await client.users.fetch(application.userId).catch(() => null);
+    await user?.send(
+        `Your brand verification for **${application.brandName}** was accepted. You now have access to the brand area.`
+    ).catch(() => null);
+
+    return replyToInteraction(interaction, {
+        content: `Brand request accepted for <@${application.userId}>.`,
+        ephemeral: true
+    });
+}
+
+function showBrandApplicationDeclineModal(interaction, applicationId) {
+    if (!memberCanManageTickets(interaction.member)) {
+        return replyToInteraction(interaction, { content: 'Only staff can review brand requests.', ephemeral: true });
+    }
+
+    const modal = new ModalBuilder()
+        .setCustomId(`brandapp_decline_modal_${applicationId}`)
+        .setTitle('Decline Brand Request');
+
+    modal.addComponents(
+        new ActionRowBuilder().addComponents(
+            new TextInputBuilder()
+                .setCustomId('decline_reason')
+                .setLabel('Reason')
+                .setPlaceholder('Missing link, unclear ownership, not enough information...')
+                .setStyle(TextInputStyle.Paragraph)
+                .setRequired(true)
+        )
+    );
+
+    return interaction.showModal(modal);
+}
+
+async function handleBrandApplicationDeclineSubmit(interaction, applicationId) {
+    const application = mockupStore.brandApplications[applicationId];
+    if (!application) {
+        return replyToInteraction(interaction, { content: 'Brand request not found.', ephemeral: true });
+    }
+
+    application.status = 'declined';
+    application.reviewedBy = interaction.user.id;
+    application.reviewedAt = new Date().toISOString();
+    application.reviewNote = interaction.fields.getTextInputValue('decline_reason');
+    mockupStore.brandApplications[applicationId] = application;
+    saveMockupStore();
+
+    await updateBrandApplicationReviewMessage(application);
+    const user = await client.users.fetch(application.userId).catch(() => null);
+    await user?.send(
+        `Your brand verification for **${application.brandName}** was declined.\nReason: ${application.reviewNote}`
+    ).catch(() => null);
+
+    return replyToInteraction(interaction, {
+        content: `Brand request declined for <@${application.userId}>.`,
+        ephemeral: true
+    });
+}
+
+function buildBrandCooperationPanel() {
+    const embed = buildPanelEmbed({
+        title: BRAND_COOPERATION_PANEL_TITLE,
+        description:
+            'Post your brand, your idea and what kind of connection you are looking for. Other verified brand members can request a private cooperation chat with you.',
+        color: '#cdb79e',
+        fields: [
+            { name: 'Post an intro', value: 'Share your brand name, link, idea and what you are looking for.', inline: false },
+            { name: 'Connect flow', value: 'Members click Connect, send their idea, and you accept or decline by DM.', inline: false },
+            { name: 'Private channel', value: 'If accepted, the bot creates a private server channel for both of you.', inline: false }
+        ],
+        footerText: 'VELOO&YESTERA // BRAND CONNECTIONS'
+    });
+
+    const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+            .setCustomId('brand_intro_open')
+            .setLabel('Post Brand Intro')
+            .setStyle(ButtonStyle.Primary)
+    );
+
+    return { embeds: [embed], components: [row] };
+}
+
+async function sendBrandCooperationPanel() {
+    const channel = await client.channels.fetch(BRAND_COOPERATION_CHANNEL_ID).catch(() => null);
+    if (!channel) {
+        return;
+    }
+
+    await upsertPanelMessage(channel, BRAND_COOPERATION_PANEL_TITLE, buildBrandCooperationPanel());
+}
+
+function memberHasBrandAccess(member) {
+    return memberHasRoleByIdOrName(member, BRAND_VERIFIED_ROLE_ID, null) || memberCanManageTickets(member);
+}
+
+function showBrandIntroModal(interaction) {
+    if (!memberHasBrandAccess(interaction.member)) {
+        return replyToInteraction(interaction, {
+            content: 'You need accepted brand access before posting here.',
+            ephemeral: true
+        });
+    }
+
+    const modal = new ModalBuilder()
+        .setCustomId('brand_intro_modal')
+        .setTitle('Brand Intro');
+
+    modal.addComponents(
+        new ActionRowBuilder().addComponents(
+            new TextInputBuilder()
+                .setCustomId('intro_brand_name')
+                .setLabel('Brand name')
+                .setPlaceholder('Your brand name')
+                .setStyle(TextInputStyle.Short)
+                .setRequired(true)
+        ),
+        new ActionRowBuilder().addComponents(
+            new TextInputBuilder()
+                .setCustomId('intro_link')
+                .setLabel('Link')
+                .setPlaceholder('Instagram, website, TikTok or shop link')
+                .setStyle(TextInputStyle.Short)
+                .setRequired(true)
+        ),
+        new ActionRowBuilder().addComponents(
+            new TextInputBuilder()
+                .setCustomId('intro_about')
+                .setLabel('Brand / idea')
+                .setPlaceholder('What are you building? What is your style?')
+                .setStyle(TextInputStyle.Paragraph)
+                .setRequired(true)
+        ),
+        new ActionRowBuilder().addComponents(
+            new TextInputBuilder()
+                .setCustomId('intro_looking_for')
+                .setLabel('Looking for')
+                .setPlaceholder('Creators, suppliers, collabs, feedback, resellers...')
+                .setStyle(TextInputStyle.Paragraph)
+                .setRequired(true)
+        ),
+        new ActionRowBuilder().addComponents(
+            new TextInputBuilder()
+                .setCustomId('intro_contact')
+                .setLabel('Contact note')
+                .setPlaceholder('Discord DM, Instagram handle, preferred contact...')
+                .setStyle(TextInputStyle.Short)
+                .setRequired(false)
+        )
+    );
+
+    return interaction.showModal(modal);
+}
+
+async function handleBrandIntroSubmit(interaction) {
+    if (!memberHasBrandAccess(interaction.member)) {
+        return replyToInteraction(interaction, {
+            content: 'You need accepted brand access before posting here.',
+            ephemeral: true
+        });
+    }
+
+    const link = interaction.fields.getTextInputValue('intro_link');
+    if (!extractFirstUrl(link)) {
+        return replyToInteraction(interaction, {
+            content: 'Please add at least one valid link.',
+            ephemeral: true
+        });
+    }
+
+    const brandName = interaction.fields.getTextInputValue('intro_brand_name');
+    const embed = buildPanelEmbed({
+        title: `Brand Intro // ${compactPanelText(brandName, 90)}`,
+        description: compactPanelText(interaction.fields.getTextInputValue('intro_about'), 1300),
+        color: '#d9c39a',
+        fields: [
+            { name: 'Link', value: compactPanelText(link, 500), inline: false },
+            { name: 'Looking for', value: compactPanelText(interaction.fields.getTextInputValue('intro_looking_for'), 900), inline: false },
+            { name: 'Contact', value: compactPanelText(interaction.fields.getTextInputValue('intro_contact') || 'Discord DM', 500), inline: true },
+            { name: 'Posted by', value: `<@${interaction.user.id}>`, inline: true }
+        ],
+        footerText: `Brand owner: ${interaction.user.id}`
+    }).setAuthor({
+        name: interaction.user.username,
+        iconURL: interaction.user.displayAvatarURL()
+    });
+
+    const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+            .setCustomId(`brandconnect_open_${interaction.user.id}`)
+            .setLabel('Connect')
+            .setStyle(ButtonStyle.Success)
+    );
+
+    await interaction.channel.send({ embeds: [embed], components: [row] });
+    return replyToInteraction(interaction, {
+        content: 'Your brand intro was posted.',
+        ephemeral: true
+    });
+}
+
+function showBrandConnectModal(interaction, targetUserId) {
+    if (interaction.user.id === targetUserId) {
+        return replyToInteraction(interaction, {
+            content: 'You cannot connect with your own brand intro.',
+            ephemeral: true
+        });
+    }
+
+    if (!memberHasBrandAccess(interaction.member)) {
+        return replyToInteraction(interaction, {
+            content: 'You need accepted brand access before connecting.',
+            ephemeral: true
+        });
+    }
+
+    const modal = new ModalBuilder()
+        .setCustomId(`brand_connect_modal_${targetUserId}`)
+        .setTitle('Brand Connection Request');
+
+    modal.addComponents(
+        new ActionRowBuilder().addComponents(
+            new TextInputBuilder()
+                .setCustomId('connect_brand')
+                .setLabel('Your brand / project')
+                .setPlaceholder('Brand name and link')
+                .setStyle(TextInputStyle.Short)
+                .setRequired(true)
+        ),
+        new ActionRowBuilder().addComponents(
+            new TextInputBuilder()
+                .setCustomId('connect_idea')
+                .setLabel('Your idea')
+                .setPlaceholder('What do you want to build together?')
+                .setStyle(TextInputStyle.Paragraph)
+                .setRequired(true)
+        ),
+        new ActionRowBuilder().addComponents(
+            new TextInputBuilder()
+                .setCustomId('connect_value')
+                .setLabel('What do you bring?')
+                .setPlaceholder('Audience, design, content, sourcing, budget, skills...')
+                .setStyle(TextInputStyle.Paragraph)
+                .setRequired(true)
+        ),
+        new ActionRowBuilder().addComponents(
+            new TextInputBuilder()
+                .setCustomId('connect_contact')
+                .setLabel('Contact')
+                .setPlaceholder('Discord DM, Instagram, email...')
+                .setStyle(TextInputStyle.Short)
+                .setRequired(false)
+        )
+    );
+
+    return interaction.showModal(modal);
+}
+
+function buildBrandConnectionEmbed(connection, status = 'pending') {
+    const statusText = status === 'accepted' ? 'Accepted' : status === 'declined' ? 'Declined' : 'Pending';
+    const color = status === 'accepted' ? '#4fb477' : status === 'declined' ? '#b95858' : '#d9c39a';
+
+    return buildPanelEmbed({
+        title: `Brand Connect // ${statusText}`,
+        description: `<@${connection.requesterId}> wants to connect with you.`,
+        color,
+        fields: [
+            { name: 'Brand / project', value: compactPanelText(connection.brand, 700), inline: false },
+            { name: 'Idea', value: compactPanelText(connection.idea, 1000), inline: false },
+            { name: 'Value', value: compactPanelText(connection.value, 1000), inline: false },
+            { name: 'Contact', value: compactPanelText(connection.contact || 'Discord DM', 500), inline: true }
+        ],
+        footerText: `Connection ID: ${connection.id}`
+    });
+}
+
+function buildBrandConnectionRow(connectionId, disabled = false) {
+    return new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+            .setCustomId(`brandconn_accept_${connectionId}`)
+            .setLabel('Accept')
+            .setStyle(ButtonStyle.Success)
+            .setDisabled(disabled),
+        new ButtonBuilder()
+            .setCustomId(`brandconn_decline_${connectionId}`)
+            .setLabel('Decline')
+            .setStyle(ButtonStyle.Danger)
+            .setDisabled(disabled)
+    );
+}
+
+async function handleBrandConnectSubmit(interaction, targetUserId) {
+    if (!memberHasBrandAccess(interaction.member)) {
+        return replyToInteraction(interaction, {
+            content: 'You need accepted brand access before connecting.',
+            ephemeral: true
+        });
+    }
+
+    const connectionId = `conn_${Date.now().toString(36)}_${interaction.user.id.slice(-4)}`;
+    const connection = {
+        id: connectionId,
+        requesterId: interaction.user.id,
+        targetUserId,
+        guildId: interaction.guildId,
+        brand: interaction.fields.getTextInputValue('connect_brand'),
+        idea: interaction.fields.getTextInputValue('connect_idea'),
+        value: interaction.fields.getTextInputValue('connect_value'),
+        contact: interaction.fields.getTextInputValue('connect_contact') || 'Discord DM',
+        status: 'pending',
+        createdAt: new Date().toISOString()
+    };
+
+    mockupStore.brandConnections[connectionId] = connection;
+    saveMockupStore();
+
+    const targetUser = await client.users.fetch(targetUserId).catch(() => null);
+    if (!targetUser) {
+        return replyToInteraction(interaction, {
+            content: 'The brand owner could not be reached.',
+            ephemeral: true
+        });
+    }
+
+    await targetUser.send({
+        embeds: [buildBrandConnectionEmbed(connection)],
+        components: [buildBrandConnectionRow(connectionId)]
+    }).catch(() => null);
+
+    return replyToInteraction(interaction, {
+        content: 'Your connection request was sent to the brand owner.',
+        ephemeral: true
+    });
+}
+
+async function createBrandConnectionChannel(connection) {
+    const guild = await getBotGuild();
+    if (!guild) {
+        return null;
+    }
+
+    const requester = await guild.members.fetch(connection.requesterId).catch(() => null);
+    const target = await guild.members.fetch(connection.targetUserId).catch(() => null);
+    const { ownerRole, moderatorRole } = findTicketTeamRoles(guild);
+    const channelName = sanitizeChannelName(`brand-${requester?.user?.username || 'member'}-${target?.user?.username || 'owner'}`).slice(0, 90);
+
+    const permissionOverwrites = [
+        {
+            id: guild.roles.everyone.id,
+            deny: [PermissionsBitField.Flags.ViewChannel]
+        },
+        requester
+            ? {
+                id: requester.id,
+                allow: [
+                    PermissionsBitField.Flags.ViewChannel,
+                    PermissionsBitField.Flags.SendMessages,
+                    PermissionsBitField.Flags.ReadMessageHistory,
+                    PermissionsBitField.Flags.AttachFiles
+                ]
+            }
+            : null,
+        target
+            ? {
+                id: target.id,
+                allow: [
+                    PermissionsBitField.Flags.ViewChannel,
+                    PermissionsBitField.Flags.SendMessages,
+                    PermissionsBitField.Flags.ReadMessageHistory,
+                    PermissionsBitField.Flags.AttachFiles
+                ]
+            }
+            : null,
+        ownerRole
+            ? {
+                id: ownerRole.id,
+                allow: [
+                    PermissionsBitField.Flags.ViewChannel,
+                    PermissionsBitField.Flags.SendMessages,
+                    PermissionsBitField.Flags.ReadMessageHistory
+                ]
+            }
+            : null,
+        moderatorRole
+            ? {
+                id: moderatorRole.id,
+                allow: [
+                    PermissionsBitField.Flags.ViewChannel,
+                    PermissionsBitField.Flags.SendMessages,
+                    PermissionsBitField.Flags.ReadMessageHistory
+                ]
+            }
+            : null
+    ].filter(Boolean);
+
+    const channel = await guild.channels.create({
+        name: channelName || 'brand-connection',
+        type: ChannelType.GuildText,
+        parent: TICKET_CATEGORY_ID || undefined,
+        permissionOverwrites,
+        reason: 'Brand connection accepted'
+    }).catch(() => null);
+
+    if (channel) {
+        await channel.send({
+            content: `<@${connection.requesterId}> <@${connection.targetUserId}>`,
+            embeds: [buildBrandConnectionEmbed({ ...connection, targetUserId: connection.targetUserId }, 'accepted')]
+        }).catch(() => null);
+    }
+
+    return channel;
+}
+
+async function handleBrandConnectionDecision(interaction, connectionId, status) {
+    const connection = mockupStore.brandConnections[connectionId];
+    if (!connection) {
+        return replyToInteraction(interaction, { content: 'Connection request not found.', ephemeral: true });
+    }
+
+    if (interaction.user.id !== connection.targetUserId) {
+        return replyToInteraction(interaction, { content: 'Only the brand owner can answer this request.', ephemeral: true });
+    }
+
+    connection.status = status;
+    connection.reviewedAt = new Date().toISOString();
+
+    let channel = null;
+    if (status === 'accepted') {
+        channel = await createBrandConnectionChannel(connection);
+        connection.channelId = channel?.id || null;
+    }
+
+    mockupStore.brandConnections[connectionId] = connection;
+    saveMockupStore();
+
+    const requester = await client.users.fetch(connection.requesterId).catch(() => null);
+    if (status === 'accepted') {
+        await requester?.send(
+            `Your brand connection was accepted.${channel ? ` Private channel: <#${channel.id}>` : ''}`
+        ).catch(() => null);
+    } else {
+        await requester?.send('Your brand connection request was declined.').catch(() => null);
+    }
+
+    const updatedPayload = {
+        embeds: [buildBrandConnectionEmbed(connection, status)],
+        components: [buildBrandConnectionRow(connectionId, true)]
+    };
+
+    if (interaction.replied || interaction.deferred) {
+        await interaction.followUp({ content: `Request ${status}.`, ephemeral: true }).catch(() => null);
+    } else {
+        await interaction.update(updatedPayload).catch(() => null);
+    }
 }
 
 function getCreatorApplication(applicationId) {
@@ -6504,6 +7764,18 @@ async function refreshPanels() {
         await sendReactionRolePanel();
     } catch (error) {
         console.error('Reaction role channel error:', error.message);
+    }
+
+    try {
+        await sendBrandVerifyPanel();
+    } catch (error) {
+        console.error('Brand verification panel error:', error.message);
+    }
+
+    try {
+        await sendBrandCooperationPanel();
+    } catch (error) {
+        console.error('Brand cooperation panel error:', error.message);
     }
 
     try {
@@ -7698,6 +8970,51 @@ client.on('interactionCreate', async interaction => {
                 return handleVerifyButton(interaction);
             }
 
+            if (interaction.customId === 'open_brand_verify') {
+                return showBrandVerifyModal(interaction);
+            }
+
+            if (interaction.customId.startsWith('brandapp_accept_')) {
+                return handleBrandApplicationAccept(
+                    interaction,
+                    interaction.customId.replace('brandapp_accept_', '')
+                );
+            }
+
+            if (interaction.customId.startsWith('brandapp_decline_')) {
+                return showBrandApplicationDeclineModal(
+                    interaction,
+                    interaction.customId.replace('brandapp_decline_', '')
+                );
+            }
+
+            if (interaction.customId === 'brand_intro_open') {
+                return showBrandIntroModal(interaction);
+            }
+
+            if (interaction.customId.startsWith('brandconnect_open_')) {
+                return showBrandConnectModal(
+                    interaction,
+                    interaction.customId.replace('brandconnect_open_', '')
+                );
+            }
+
+            if (interaction.customId.startsWith('brandconn_accept_')) {
+                return handleBrandConnectionDecision(
+                    interaction,
+                    interaction.customId.replace('brandconn_accept_', ''),
+                    'accepted'
+                );
+            }
+
+            if (interaction.customId.startsWith('brandconn_decline_')) {
+                return handleBrandConnectionDecision(
+                    interaction,
+                    interaction.customId.replace('brandconn_decline_', ''),
+                    'declined'
+                );
+            }
+
             if (interaction.customId === 'open_vinted_notifications') {
                 return showNotificationSettings(interaction);
             }
@@ -7741,7 +9058,7 @@ client.on('interactionCreate', async interaction => {
             if (interaction.customId === 'ai_refresh_balance') {
                 await upsertAiChatPanel(interaction.channel, interaction.user.id);
                 return replyToInteraction(interaction, {
-                    content: `Tokenstand aktualisiert: ${getAiUserRecord(interaction.user.id).balance}`,
+                    content: `Creditstand aktualisiert: ${formatAiCredits(getAiUserRecord(interaction.user.id).balance)}`,
                     ephemeral: true
                 });
             }
@@ -8412,6 +9729,28 @@ client.on('interactionCreate', async interaction => {
                 return handleAiQuestionSubmit(interaction);
             }
 
+            if (interaction.customId === 'brand_verify_modal') {
+                return handleBrandVerifySubmit(interaction);
+            }
+
+            if (interaction.customId.startsWith('brandapp_decline_modal_')) {
+                return handleBrandApplicationDeclineSubmit(
+                    interaction,
+                    interaction.customId.replace('brandapp_decline_modal_', '')
+                );
+            }
+
+            if (interaction.customId === 'brand_intro_modal') {
+                return handleBrandIntroSubmit(interaction);
+            }
+
+            if (interaction.customId.startsWith('brand_connect_modal_')) {
+                return handleBrandConnectSubmit(
+                    interaction,
+                    interaction.customId.replace('brand_connect_modal_', '')
+                );
+            }
+
             if (interaction.customId === 'ai_listing_modal') {
                 return handleAiQuestionSubmit(interaction, buildVintedListingPrompt(interaction));
             }
@@ -9009,6 +10348,57 @@ function startBotHttpServer() {
             } catch (error) {
                 console.error('Account status endpoint failed:', error.message);
                 return sendJsonResponse(response, 500, { error: 'account_status_failed' });
+            }
+        }
+
+        if (request.method === 'POST' && url.pathname === '/api/website-ai-conversations') {
+            if (!isAuthorizedBotSync(request)) {
+                return sendJsonResponse(response, 401, { error: 'unauthorized' });
+            }
+
+            try {
+                const payload = await readJsonBody(request);
+                const discordUserId = String(payload.discordUserId || '').trim();
+                const email = normalizeAccountEmail(payload.email);
+                const conversation = getAiConversationById(email, payload.conversationId);
+
+                if (!/^\d{16,25}$/.test(discordUserId)) {
+                    return sendJsonResponse(response, 400, { error: 'invalid_user' });
+                }
+
+                if (!isValidAccountEmail(email)) {
+                    return sendJsonResponse(response, 400, { error: 'invalid_email' });
+                }
+
+                const tokenRecord = getAiUserRecord(discordUserId);
+                return sendJsonResponse(response, 200, {
+                    ok: true,
+                    conversations: listAiConversationsForEmail(email),
+                    conversation: conversation ? getAiConversationForResponse(conversation) : null,
+                    tokens: {
+                        balance: Number(tokenRecord.balance || 0),
+                        totalGranted: Number(tokenRecord.totalGranted || 0),
+                        totalUsed: Number(tokenRecord.totalUsed || 0)
+                    }
+                });
+            } catch (error) {
+                console.error('Website AI conversations endpoint failed:', error.message);
+                return sendJsonResponse(response, 500, { error: 'website_ai_conversations_failed' });
+            }
+        }
+
+        if (request.method === 'POST' && url.pathname === '/api/website-ai-chat') {
+            if (!isAuthorizedBotSync(request)) {
+                return sendJsonResponse(response, 401, { error: 'unauthorized' });
+            }
+
+            try {
+                const payload = await readJsonBody(request);
+                const result = await handleWebsiteAiChat(payload);
+                return sendJsonResponse(response, result.status, result.body);
+            } catch (error) {
+                console.error('Website AI chat endpoint failed:', error.message);
+                return sendJsonResponse(response, 500, { error: 'website_ai_chat_failed' });
             }
         }
 

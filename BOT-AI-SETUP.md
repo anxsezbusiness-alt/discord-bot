@@ -7,6 +7,8 @@ Dieser Bot enthaelt jetzt:
 - Token-Guthaben pro Discord-User
 - Token-Gutschrift von Vercel nach Stripe-Zahlung
 - AI API Verbindung
+- Website AI Chat ueber `/api/website-ai-chat`
+- E-Mail gespeicherte AI-Konversationen fuer die Website
 - Verification-Panel mit Unverified/Verified Rollen
 - VIP-Rolle wird ueber `/api/revoke-vip` entfernt, wenn Stripe ein gekuendigtes oder abgelaufenes Abo meldet
 
@@ -19,7 +21,7 @@ Diese Variablen in Railway beim Bot setzen:
 - `OPENAI_API_KEY`
   - dein OpenAI API Key
 - `OPENAI_MODEL`
-  - Empfehlung: `gpt-5.4-mini`
+  - Empfehlung: `gpt-5`
 - `OPENAI_MAX_OUTPUT_TOKENS`
   - Empfehlung: `900`
 - `AI_MIN_OUTPUT_TOKENS`
@@ -39,6 +41,8 @@ Diese Variablen in Railway beim Bot setzen:
   - `https://www.veloo.org/vip.html#ai-tokens`
 - `AI_STARTING_TOKENS`
   - `0`
+- `AI_CONVERSATION_STORE_PATH`
+  - optional, Standard ist `ai-conversation-store.json`
 - `VERIFICATION_CHANNEL_ID`
   - `1492469888759890131`
 - `UNVERIFIED_ROLE_ID`
@@ -81,17 +85,19 @@ Diese beiden muessen in Vercel bei der Website gesetzt werden:
 
 In Stripe als einmalige Produkte anlegen:
 
-- `100 AI Tokens` fuer `4,99 EUR`
-- `500 AI Tokens` fuer `14,99 EUR`
-- `1000 AI Tokens` fuer `24,99 EUR`
+- `1 AI Credit` fuer `2,00 EUR` (`10.000` interne Tokens)
+- `2,5 AI Credits` fuer `4,99 EUR` (`25.000` interne Tokens)
+- `10 AI Credits` fuer `14,99 EUR` (`100.000` interne Tokens)
+- `25 AI Credits` fuer `24,99 EUR` (`250.000` interne Tokens)
 
 Die Price IDs danach in Vercel setzen:
 
 - `STRIPE_PRICE_ID_TOKENS_100`
 - `STRIPE_PRICE_ID_TOKENS_500`
 - `STRIPE_PRICE_ID_TOKENS_1000`
+- `STRIPE_PRICE_ID_TOKENS_10`
 
 VIP-Abo Token-Bonus:
 
-- Monatsabo: `VIP_TOKENS_MONTHLY=50`
-- Jahresabo: `VIP_TOKENS_YEARLY=750`
+- Monatsabo: `VIP_TOKENS_MONTHLY=5000`
+- Jahresabo: `VIP_TOKENS_YEARLY=75000`
